@@ -167,6 +167,7 @@ fn dispatch_event_json<T: Serialize + Send + 'static>(
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_event_loop(
     mut session: Option<Session>,
     mut receiver: mpsc::UnboundedReceiver<AppEvent>,
@@ -971,7 +972,7 @@ mod tests {
 
         let v1: serde_json::Value = serde_json::from_str(&msg1).unwrap();
         let v2: serde_json::Value = serde_json::from_str(&msg2).unwrap();
-        let events = vec![
+        let events = [
             v1["Event"].as_str().unwrap().to_string(),
             v2["Event"].as_str().unwrap().to_string(),
         ];

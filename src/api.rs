@@ -1,7 +1,6 @@
 use crate::events::{MetadataPayload, WebhookPayload};
 use crate::metadata_cache::MetadataCache;
 use crate::shared_mixer::SharedMixer;
-use anyhow;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -389,6 +388,7 @@ async fn get_asyncapi_json() -> Json<serde_json::Value> {
     Json(build_asyncapi_spec())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_api(
     node_id: String,
     device_name: String,
@@ -709,12 +709,12 @@ async fn resume(State(state): State<Arc<AppState>>) -> (axum::http::StatusCode, 
             use librespot_connect::{
                 LoadContextOptions, LoadRequest, LoadRequestOptions, Options, PlayingTrack,
             };
-            let mut opts = LoadRequestOptions::default();
-            opts.start_playing = true;
-            if pos > 0 {
-                opts.seek_to = pos;
-            }
-            opts.playing_track = Some(PlayingTrack::Uri(track_uri_clone.clone()));
+            let mut opts = LoadRequestOptions {
+                start_playing: true,
+                seek_to: if pos > 0 { pos } else { 0 },
+                playing_track: Some(PlayingTrack::Uri(track_uri_clone.clone())),
+                ..Default::default()
+            };
 
             let req = if let Some(ctx_uri) = context_uri {
                 opts.context_options = Some(LoadContextOptions::Options(Options {
@@ -882,8 +882,10 @@ async fn play_context(
         info!("[SPIRC] Waiting 1.5s for session transfer...");
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
         use librespot_connect::{LoadRequest, LoadRequestOptions};
-        let mut opts = LoadRequestOptions::default();
-        opts.start_playing = true;
+        let opts = LoadRequestOptions {
+            start_playing: true,
+            ..Default::default()
+        };
         info!(
             "[SPIRC] -> load(context={}, start_playing=true)",
             context_uri
@@ -995,17 +997,19 @@ mod tests {
     use tower::ServiceExt;
 
     fn make_test_state() -> Arc<AppState> {
-        let mut pb = crate::state::PlaybackState::default();
-        pb.volume = 45;
-        pb.was_playing = true;
-        pb.was_active_device = true;
-        pb.is_connected = true;
-        pb.connected_user = Some("testuser".to_string());
-        pb.last_track_uri = Some("spotify:track:4uLU6hMCjMI75M1A2tKUQC".to_string());
-        pb.context_uri = Some("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M".to_string());
-        pb.context_name = Some("Today's Top Hits".to_string());
-        pb.last_position = 12345;
-        pb.position_updated_at_ms = 0;
+        let pb = crate::state::PlaybackState {
+            volume: 45,
+            was_playing: true,
+            was_active_device: true,
+            is_connected: true,
+            connected_user: Some("testuser".to_string()),
+            last_track_uri: Some("spotify:track:4uLU6hMCjMI75M1A2tKUQC".to_string()),
+            context_uri: Some("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M".to_string()),
+            context_name: Some("Today's Top Hits".to_string()),
+            last_position: 12345,
+            position_updated_at_ms: 0,
+            ..Default::default()
+        };
 
         let (ws_tx, _) = broadcast::channel(16);
 

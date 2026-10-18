@@ -163,16 +163,20 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or("disabled (WebSocket only)")
     );
 
-    let mut session_config = SessionConfig::default();
-    session_config.device_id = device_id.clone();
+    let session_config = SessionConfig {
+        device_id: device_id.clone(),
+        ..Default::default()
+    };
 
     // Initialize Cache
     let cache = Cache::new(Some(cache_path.clone()), None, None, None)
         .context("Failed to initialize cache")?;
 
     let state_file_path = cache_path.join("playback_state.json");
-    let mut initial_state = state::PlaybackState::default();
-    initial_state.volume = initial_vol_percent;
+    let mut initial_state = state::PlaybackState {
+        volume: initial_vol_percent,
+        ..Default::default()
+    };
 
     const RECOVERY_THRESHOLD_SECS: u64 = 3600; // 60 minutes
 
@@ -496,12 +500,12 @@ async fn main() -> anyhow::Result<()> {
 
                         tokio::spawn(async move {
                             tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                            let mut opts = LoadRequestOptions::default();
-                            opts.start_playing = was_playing;
-                            if pos > 0 {
-                                opts.seek_to = pos;
-                            }
-                            opts.playing_track = Some(PlayingTrack::Uri(track_uri_clone.clone()));
+                            let mut opts = LoadRequestOptions {
+                                start_playing: was_playing,
+                                seek_to: if pos > 0 { pos } else { 0 },
+                                playing_track: Some(PlayingTrack::Uri(track_uri_clone.clone())),
+                                ..Default::default()
+                            };
                             let req = if let Some(ctx_uri) = context_uri {
                                 opts.context_options = Some(LoadContextOptions::Options(Options {
                                     shuffle,

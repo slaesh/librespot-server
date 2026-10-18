@@ -77,7 +77,7 @@ impl MetadataCache {
                     );
                     let mut rx = rx.clone();
                     drop(entries);
-                    if let Err(_) = rx.changed().await {
+                    if rx.changed().await.is_err() {
                         return None;
                     }
                     return rx.borrow().clone().map(CacheResult::Cached);
@@ -166,12 +166,10 @@ impl MetadataCache {
 
     pub async fn try_mark_webhook_sent(&self, track_id: &SpotifyUri) -> bool {
         let mut entries = self.entries.lock().await;
-        if let Some(entry) = entries.get_mut(track_id) {
-            if let CacheEntry::Ready(_, ref mut sent) = entry {
-                if !*sent {
-                    *sent = true;
-                    return true;
-                }
+        if let Some(CacheEntry::Ready(_, ref mut sent)) = entries.get_mut(track_id) {
+            if !*sent {
+                *sent = true;
+                return true;
             }
         }
         false

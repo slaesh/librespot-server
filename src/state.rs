@@ -116,10 +116,12 @@ mod tests {
 
     #[test]
     fn test_current_position_ms_calculation() {
-        let mut state = PlaybackState::default();
-        state.last_position = 10_000;
-        state.position_updated_at_ms = 1_000_000;
-        state.was_playing = false;
+        let mut state = PlaybackState {
+            last_position: 10_000,
+            position_updated_at_ms: 1_000_000,
+            was_playing: false,
+            ..Default::default()
+        };
 
         // When paused, position does not advance
         assert_eq!(state.current_position_ms(1_005_000), 10_000);
