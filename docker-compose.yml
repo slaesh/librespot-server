@@ -1,0 +1,30 @@
+services:
+  librespot-server:
+    image: ghcr.io/slaesh/librespot-server:latest
+    container_name: spotify-node
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - NODE_ID=living-room
+      - DEVICE_NAME=Living Room Speaker
+      - PIPE_PATH=/tmp/audio_fifos/living-room
+      - API_PORT=25000
+      - INITIAL_VOLUME=50
+      # - WEBHOOK_URL=http://localhost:8080/webhook
+    volumes:
+      - audio_fifos:/tmp/audio_fifos
+      - spotify_cache:/var/cache/librespot
+
+  # Optional Snapserver integration:
+  # snapserver:
+  #   image: alpine:latest
+  #   container_name: snapserver
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   volumes:
+  #     - audio_fifos:/tmp/audio_fifos
+  #   command: snapserver --soundcard "pipe:///tmp/audio_fifos/living-room?name=Spotify&sampleformat=44100:16:2"
+
+volumes:
+  audio_fifos:
+  spotify_cache:

@@ -37,8 +37,69 @@ use librespot_connect::Spirc;
 use librespot_connect::ConnectConfig;
 use librespot_connect::{LoadRequest, LoadRequestOptions, LoadContextOptions, Options, PlayingTrack};
 
+pub fn app_version() -> &'static str {
+    const VERSION: Option<&str> = option_env!("APP_VERSION");
+    match VERSION {
+        Some(v) if !v.is_empty() => v,
+        _ => env!("CARGO_PKG_VERSION"),
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = env::args().collect();
+
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("librespot-server v{} (librespot v{})", app_version(), librespot_core::version::SEMVER);
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--dump-specs") {
+        let openapi = <crate::api::ApiDoc as utoipa::OpenApi>::openapi();
+        let openapi_json = serde_json::to_string_pretty(&openapi)?;
+        std::fs::write("openapi.json", openapi_json)?;
+
+        let asyncapi = crate::api::build_asyncapi_spec();
+        let asyncapi_json = serde_json::to_string_pretty(&asyncapi)?;
+        std::fs::write("asyncapi.json", asyncapi_json)?;
+
+        println!("Successfully wrote openapi.json and asyncapi.json");
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--healthcheck") {
+        let api_port = env::var("API_PORT")
+            .or_else(|_| env::var("HTTP_PORT"))
+            .unwrap_or_else(|_| "25000".to_string())
+            .parse::<u16>()
+            .unwrap_or(25000);
+
+        let url = format!("http://127.0.0.1:{}/api/v1/health", api_port);
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(3))
+            .build()?;
+
+        match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                let text = resp.text().await.unwrap_or_default();
+                if text.contains("\"status\":\"ok\"") || text.contains("\"status\": \"ok\"") {
+                    std::process::exit(0);
+                } else {
+                    eprintln!("Healthcheck response body unhealthy: {}", text);
+                    std::process::exit(1);
+                }
+            }
+            Ok(resp) => {
+                eprintln!("Healthcheck HTTP status error: {}", resp.status());
+                std::process::exit(1);
+            }
+            Err(e) => {
+                eprintln!("Healthcheck request error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
     // Initialize logging
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
@@ -47,8 +108,8 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("Failed to set tracing subscriber: {}", e);
     }
 
-    let version = env!("CARGO_PKG_VERSION");
-    info!("Starting spotify-node v{} (librespot v{})...", version, librespot_core::version::SEMVER);
+    let version = app_version();
+    info!("Starting librespot-server v{} (librespot v{})...", version, librespot_core::version::SEMVER);
 
     // Load configuration from environment (supporting both generic Open-Source and Orchestrator env vars)
     let device_name = env::var("DEVICE_NAME").unwrap_or_else(|_| "Spotify Node".to_string());

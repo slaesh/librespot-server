@@ -1,0 +1,48 @@
+name: Bug Report
+description: Create a report to help us improve librespot-server
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please provide as much detail as possible.
+  - type: input
+    id: version
+    attributes:
+      label: librespot-server Version / Docker Tag
+      description: What version or image tag are you running? (e.g. `0.2.0`, `latest`, `experimental`)
+      placeholder: "e.g. 0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating System & Architecture
+      description: Host OS and architecture (e.g. Ubuntu 24.04 x86_64, Raspberry Pi OS ARM64, Docker on TrueNAS/Unraid)
+      placeholder: "e.g. Raspberry Pi 4 (ARM64), Docker 27.0"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Start container with command ...
+        2. Send POST /api/v1/play-context ...
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Please copy and paste any relevant container logs (redact any Spotify credentials/tokens).
+      render: shell

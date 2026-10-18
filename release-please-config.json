@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "rust",
+      "package-name": "librespot-server",
+      "include-component-in-tag": false,
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "openapi.json",
+          "jsonpath": "$.info.version"
+        },
+        {
+          "type": "json",
+          "path": "asyncapi.json",
+          "jsonpath": "$.info.version"
+        }
+      ]
+    }
+  }
+}

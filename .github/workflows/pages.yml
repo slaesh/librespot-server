@@ -1,0 +1,153 @@
+name: Deploy Documentation (GitHub Pages)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "openapi.json"
+      - "asyncapi.json"
+      - ".github/workflows/pages.yml"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare static documentation site
+        run: |
+          mkdir -p _site
+          cp openapi.json _site/openapi.json
+          cp asyncapi.json _site/asyncapi.json
+
+          # Generate index.html (Scalar OpenAPI 3.1 UI)
+          cat << 'EOF' > _site/index.html
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>librespot-server | REST API Documentation</title>
+              <link rel="icon" href="https://fav.farm/🎵" />
+              <style>
+                body { margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+                .top-bar {
+                  background: #18181b;
+                  color: #fafafa;
+                  padding: 10px 20px;
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  font-size: 14px;
+                  border-bottom: 1px solid #27272a;
+                }
+                .top-bar a {
+                  color: #38bdf8;
+                  text-decoration: none;
+                  margin-left: 15px;
+                  font-weight: 500;
+                }
+                .top-bar a:hover { text-decoration: underline; }
+                .brand { font-weight: 700; color: #10b981; }
+              </style>
+            </head>
+            <body>
+              <div class="top-bar">
+                <div><span class="brand">librespot-server</span> • REST API Reference (OpenAPI 3.1)</div>
+                <div>
+                  <a href="asyncapi.html">WebSocket & Webhook Events (AsyncAPI) &rarr;</a>
+                  <a href="openapi.json" target="_blank">raw openapi.json</a>
+                  <a href="https://github.com/slaesh/librespot-server" target="_blank">GitHub Repo</a>
+                </div>
+              </div>
+              <script id="api-reference" data-url="./openapi.json"></script>
+              <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+            </body>
+          </html>
+          EOF
+
+          # Generate asyncapi.html (AsyncAPI 2.6 UI)
+          cat << 'EOF' > _site/asyncapi.html
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>librespot-server | WebSocket & Webhook Events (AsyncAPI)</title>
+              <link rel="icon" href="https://fav.farm/⚡" />
+              <link rel="stylesheet" href="https://unpkg.com/@asyncapi/react-component@latest/styles/default.min.css">
+              <style>
+                body { margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+                .top-bar {
+                  background: #18181b;
+                  color: #fafafa;
+                  padding: 10px 20px;
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  font-size: 14px;
+                  border-bottom: 1px solid #27272a;
+                }
+                .top-bar a {
+                  color: #38bdf8;
+                  text-decoration: none;
+                  margin-left: 15px;
+                  font-weight: 500;
+                }
+                .top-bar a:hover { text-decoration: underline; }
+                .brand { font-weight: 700; color: #10b981; }
+                #asyncapi { padding: 20px; max-width: 1200px; margin: 0 auto; }
+              </style>
+            </head>
+            <body>
+              <div class="top-bar">
+                <div><span class="brand">librespot-server</span> • WebSocket & Webhooks (AsyncAPI 2.6)</div>
+                <div>
+                  <a href="index.html">&larr; Back to REST API Reference</a>
+                  <a href="asyncapi.json" target="_blank">raw asyncapi.json</a>
+                  <a href="https://github.com/slaesh/librespot-server" target="_blank">GitHub Repo</a>
+                </div>
+              </div>
+              <div id="asyncapi"></div>
+              <script src="https://unpkg.com/@asyncapi/react-component@latest/browser/standalone/index.js"></script>
+              <script>
+                fetch('./asyncapi.json')
+                  .then(response => response.json())
+                  .then(schema => {
+                    AsyncApiStandalone.render({
+                      schema: schema,
+                      config: { show: { sidebar: true } }
+                    }, document.getElementById('asyncapi'));
+                  })
+                  .catch(err => console.error("Failed to render AsyncAPI spec:", err));
+              </script>
+            </body>
+          </html>
+          EOF
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,5 +1,7 @@
 # librespot-server
 
+[![CI & Release](https://github.com/slaesh/librespot-server/actions/workflows/release.yml/badge.svg)](https://github.com/slaesh/librespot-server/actions/workflows/release.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://slaesh.github.io/librespot-server/)
 [![Release](https://img.shields.io/github/v/release/slaesh/librespot-server?include_prereleases)](https://github.com/slaesh/librespot-server/releases)
 [![Container Image](https://img.shields.io/badge/ghcr.io-slaesh%2Flibrespot--server-blue?logo=docker)](https://github.com/slaesh/librespot-server/pkgs/container/librespot-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -15,8 +17,9 @@ A headless, production-hardened **Spotify Connect** daemon written in Rust (buil
 - **Rich Metadata & Context Resolution**: Automatically resolves track title, artist, album, duration, CDN cover art URL, and playlist/album/artist context names via `librespot-metadata` with in-memory deduplicated caching.
 - **Cold-Boot Session Recovery & Autoplay**: Persists `playback_state.json` every 10s. Automatically restores active sessions or enters Warm Standby on container restart, and converts single tracks into `spotify:station:track:...` endless radio when Autoplay is active.
 
-## Quick Start (Docker)
+## Quick Start
 
+### Docker CLI
 Pull and run the pre-built image directly from GitHub Container Registry:
 
 ```bash
@@ -31,6 +34,23 @@ docker run -d \
   -v librespot_cache:/var/cache/librespot \
   ghcr.io/slaesh/librespot-server:latest
 ```
+
+### Docker Compose
+A ready-to-run [docker-compose.yml](file:///home/slaesh/work/librespot-server/docker-compose.yml) is included in the repository:
+
+```bash
+docker compose up -d
+```
+
+### Container Image Tags
+
+| Tag | Target | Description |
+| :--- | :--- | :--- |
+| `latest` | Production | Latest stable release. |
+| `0.2` | Production | Floating minor release (auto-receives `0.2.x` patches). |
+| `0.2.0` | Production | Exact pinned release version. |
+| `experimental` | Development | Bleeding-edge build from the `main` branch. |
+| `pr-<number>` | Testing | Ephemeral preview image built from internal pull requests. |
 
 ## Configuration (Environment Variables)
 
@@ -47,7 +67,10 @@ docker run -d \
 ## REST & WebSocket API (`/api/v1`)
 
 ### Interactive Docs & Machine-Readable Specifications
-Every running `librespot-server` instance serves its own live, code-first API specifications (generated directly from the Rust structs via `utoipa`):
+Live documentation is hosted directly on GitHub Pages without needing to run a container:
+- 🌐 **[Live API Reference (GitHub Pages)](https://slaesh.github.io/librespot-server/)**: Interactive **Scalar REST API UI** & **AsyncAPI WebSocket Documentation**.
+
+Every running `librespot-server` instance also serves its own live, code-first API specifications:
 - **`GET /docs`**: Interactive **Scalar API Reference UI** in the browser.
 - **`GET /api/v1/openapi.json`** (alias `/openapi.json`): **OpenAPI 3.1** specification covering all REST endpoints **plus** all WebSocket/Webhook event schemas (`WebSocketEventPacket`, `InitialStateEvent`, `WebhookPayload`, `MetadataPayload`) in `components.schemas`.
 - **`GET /api/v1/asyncapi.json`** (alias `/asyncapi.json`): **AsyncAPI 2.6** specification describing the `/api/v1/ws` WebSocket channel and its message payloads.

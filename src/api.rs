@@ -182,6 +182,7 @@ pub struct InitialStateEvent {
 /// Code generators (NSwag, Kiota, openapi-typescript, etc.) generate strongly-typed models for all three variants directly from `openapi.json`.
 #[derive(Serialize, Clone, Debug, ToSchema)]
 #[serde(untagged)]
+#[allow(dead_code)]
 pub enum WebSocketEventPacket {
     /// Emitted immediately upon WebSocket connection (`Event = "initial_state"`).
     InitialState(InitialStateEvent),
@@ -427,7 +428,7 @@ async fn get_health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> 
 
     Json(HealthResponse {
         status: "ok".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: crate::app_version().to_string(),
         node_id: state.node_id.clone(),
         device_name: state.device_name.clone(),
         is_connected,
@@ -489,7 +490,7 @@ async fn build_status_snapshot(state: &AppState) -> NodeStatusResponse {
     NodeStatusResponse {
         node_id: state.node_id.clone(),
         device_name: state.device_name.clone(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: crate::app_version().to_string(),
         is_connected,
         connected_user,
         is_playing,
@@ -1087,6 +1088,39 @@ mod tests {
                 .unwrap();
             assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         }
+    }
+
+    #[tokio::test]
+    async fn test_committed_specs_are_in_sync() {
+        let openapi_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("openapi.json");
+        assert!(openapi_file.exists(), "openapi.json must exist in repo root");
+        let openapi_content = std::fs::read_to_string(&openapi_file).expect("Failed to read openapi.json");
+        let openapi_committed: serde_json::Value = serde_json::from_str(&openapi_content).expect("Invalid openapi.json");
+
+        let generated_openapi = serde_json::to_value(ApiDoc::openapi()).unwrap();
+        assert_eq!(
+            openapi_committed["paths"], generated_openapi["paths"],
+            "openapi.json paths have drifted from Rust code! Run `cargo run -- --dump-specs`."
+        );
+        assert_eq!(
+            openapi_committed["components"], generated_openapi["components"],
+            "openapi.json components have drifted from Rust code! Run `cargo run -- --dump-specs`."
+        );
+
+        let asyncapi_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("asyncapi.json");
+        assert!(asyncapi_file.exists(), "asyncapi.json must exist in repo root");
+        let asyncapi_content = std::fs::read_to_string(&asyncapi_file).expect("Failed to read asyncapi.json");
+        let asyncapi_committed: serde_json::Value = serde_json::from_str(&asyncapi_content).expect("Invalid asyncapi.json");
+
+        let generated_asyncapi = build_asyncapi_spec();
+        assert_eq!(
+            asyncapi_committed["channels"], generated_asyncapi["channels"],
+            "asyncapi.json channels have drifted from Rust code! Run `cargo run -- --dump-specs`."
+        );
+        assert_eq!(
+            asyncapi_committed["components"], generated_asyncapi["components"],
+            "asyncapi.json components have drifted from Rust code! Run `cargo run -- --dump-specs`."
+        );
     }
 }
 
