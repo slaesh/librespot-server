@@ -552,7 +552,7 @@ async fn handle_ws_client(mut socket: WebSocket, state: Arc<AppState>) {
         status: snapshot,
     };
     if let Ok(init_str) = serde_json::to_string(&init_payload) {
-        if socket.send(Message::Text(init_str)).await.is_err() {
+        if socket.send(Message::Text(init_str.into())).await.is_err() {
             return;
         }
     }
@@ -562,7 +562,7 @@ async fn handle_ws_client(mut socket: WebSocket, state: Arc<AppState>) {
             res = rx.recv() => {
                 match res {
                     Ok(msg) => {
-                        if socket.send(Message::Text(msg)).await.is_err() {
+                        if socket.send(Message::Text(msg.into())).await.is_err() {
                             break;
                         }
                     }
