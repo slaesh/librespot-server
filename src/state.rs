@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
-use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct PlaybackState {
@@ -36,7 +36,9 @@ pub struct PlaybackState {
     pub connected_user: Option<String>,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 pub type SharedPlaybackState = Arc<Mutex<PlaybackState>>;
 
@@ -127,4 +129,3 @@ mod tests {
         assert_eq!(state.current_position_ms(1_005_500), 15_500);
     }
 }
-

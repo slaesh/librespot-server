@@ -1,8 +1,8 @@
-use std::fs::File;
-use std::io::Write;
 use librespot_playback::audio_backend::{Sink, SinkResult};
 use librespot_playback::convert::Converter;
 use librespot_playback::decoder::AudioPacket;
+use std::fs::File;
+use std::io::Write;
 
 pub struct FifoSink {
     file: Option<File>,
@@ -16,7 +16,11 @@ impl FifoSink {
         let file = match std::fs::OpenOptions::new().write(true).open(&path) {
             Ok(f) => Some(f),
             Err(e) => {
-                tracing::warn!("Could not open audio pipe {} on startup: {}. Will retry on playback.", path, e);
+                tracing::warn!(
+                    "Could not open audio pipe {} on startup: {}. Will retry on playback.",
+                    path,
+                    e
+                );
                 None
             }
         };
@@ -32,7 +36,11 @@ impl FifoSink {
                         self.file = Some(f);
                     }
                     Err(e) => {
-                        tracing::warn!("Could not open audio pipe {}: {}. Retrying in 500ms...", self.path, e);
+                        tracing::warn!(
+                            "Could not open audio pipe {}: {}. Retrying in 500ms...",
+                            self.path,
+                            e
+                        );
                         std::thread::sleep(std::time::Duration::from_millis(500));
                         continue;
                     }
@@ -43,7 +51,10 @@ impl FifoSink {
                 match f.write_all(data) {
                     Ok(_) => return Ok(()),
                     Err(e) => {
-                        tracing::warn!("Failed to write to audio pipe (broken pipe?): {}. Reopening...", e);
+                        tracing::warn!(
+                            "Failed to write to audio pipe (broken pipe?): {}. Reopening...",
+                            e
+                        );
                         self.file = None;
                         // Loop around to reopen
                     }

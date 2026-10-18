@@ -1,6 +1,6 @@
+use librespot_playback::mixer::{Mixer, MixerConfig, VolumeGetter};
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
-use librespot_playback::mixer::{Mixer, VolumeGetter, MixerConfig};
 
 pub struct SharedMixer {
     volume: Arc<AtomicU16>,
@@ -15,7 +15,10 @@ impl SharedMixer {
 }
 
 impl Mixer for SharedMixer {
-    fn open(_config: MixerConfig) -> Result<Self, librespot_core::Error> where Self: Sized {
+    fn open(_config: MixerConfig) -> Result<Self, librespot_core::Error>
+    where
+        Self: Sized,
+    {
         Ok(Self::new(32768))
     }
 

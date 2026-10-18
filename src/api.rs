@@ -1,3 +1,6 @@
+use crate::events::{MetadataPayload, WebhookPayload};
+use crate::metadata_cache::MetadataCache;
+use crate::shared_mixer::SharedMixer;
 use anyhow;
 use axum::{
     extract::{
@@ -8,15 +11,12 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use librespot_connect::Spirc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{info, warn};
 use utoipa::{OpenApi, ToSchema};
-use crate::events::{MetadataPayload, WebhookPayload};
-use crate::metadata_cache::MetadataCache;
-use crate::shared_mixer::SharedMixer;
-use librespot_connect::Spirc;
 
 /// Request payload to set the playback volume percentage (`0..=100`).
 #[derive(Deserialize, Serialize, ToSchema)]
@@ -475,14 +475,18 @@ async fn build_status_snapshot(state: &AppState) -> NodeStatusResponse {
     };
 
     let track = if let Some(ref uri) = current_track_uri {
-        state.metadata_cache.get_cached_by_uri(uri).await.map(|m| TrackMetadataDto {
-            track_id: uri.clone(),
-            title: m.title,
-            artist: m.artist,
-            album: m.album,
-            duration_ms: m.duration_ms,
-            cover_url: m.cover_url,
-        })
+        state
+            .metadata_cache
+            .get_cached_by_uri(uri)
+            .await
+            .map(|m| TrackMetadataDto {
+                track_id: uri.clone(),
+                title: m.title,
+                artist: m.artist,
+                album: m.album,
+                duration_ms: m.duration_ms,
+                cover_url: m.cover_url,
+            })
     } else {
         None
     };
@@ -533,10 +537,7 @@ async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatusRespon
         (status = 101, description = "Switching Protocols to WebSocket stream emitting `WebSocketEventPacket` JSON frames", body = WebSocketEventPacket)
     )
 )]
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_ws_client(socket, state))
 }
 
@@ -603,13 +604,19 @@ async fn set_volume(
 ) -> (axum::http::StatusCode, &'static str) {
     let volume_percent = payload.volume.min(100);
     let volume_u16 = ((volume_percent as f64 / 100.0) * 65535.0) as u16;
-    
-    info!("Setting volume to {}% (u16: {})", volume_percent, volume_u16);
-    
+
+    info!(
+        "Setting volume to {}% (u16: {})",
+        volume_percent, volume_u16
+    );
+
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Set volume request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     info!("[SPIRC] -> set_volume({})", volume_u16);
@@ -632,7 +639,10 @@ async fn pause(State(state): State<Arc<AppState>>) -> (axum::http::StatusCode, &
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Pause request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     info!("[SPIRC] -> pause()");
@@ -655,7 +665,10 @@ async fn resume(State(state): State<Arc<AppState>>) -> (axum::http::StatusCode, 
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Resume request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     let (last_track, pos, context_uri, shuffle, repeat_ctx, repeat_trk, autoplay) = {
@@ -684,7 +697,9 @@ async fn resume(State(state): State<Arc<AppState>>) -> (axum::http::StatusCode, 
         tokio::spawn(async move {
             info!("[SPIRC] Waiting 1.5s for session transfer...");
             tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-            use librespot_connect::{LoadContextOptions, LoadRequest, LoadRequestOptions, Options, PlayingTrack};
+            use librespot_connect::{
+                LoadContextOptions, LoadRequest, LoadRequestOptions, Options, PlayingTrack,
+            };
             let mut opts = LoadRequestOptions::default();
             opts.start_playing = true;
             if pos > 0 {
@@ -704,7 +719,8 @@ async fn resume(State(state): State<Arc<AppState>>) -> (axum::http::StatusCode, 
                 );
                 LoadRequest::from_context_uri(ctx_uri, opts)
             } else if autoplay {
-                let station_uri = track_uri_clone.replace("spotify:track:", "spotify:station:track:");
+                let station_uri =
+                    track_uri_clone.replace("spotify:track:", "spotify:station:track:");
                 opts.context_options = Some(LoadContextOptions::Autoplay);
                 info!(
                     "[SPIRC] -> load(context={}, track={}, Autoplay, start_playing=true, seek_to={}ms)",
@@ -751,7 +767,10 @@ async fn next(State(state): State<Arc<AppState>>) -> (axum::http::StatusCode, &'
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Next request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     let was_active = {
@@ -792,7 +811,10 @@ async fn previous(State(state): State<Arc<AppState>>) -> (axum::http::StatusCode
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Previous request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     let was_active = {
@@ -837,7 +859,10 @@ async fn play_context(
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Play context request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     info!("[SPIRC] -> activate() for play_context");
@@ -850,7 +875,10 @@ async fn play_context(
         use librespot_connect::{LoadRequest, LoadRequestOptions};
         let mut opts = LoadRequestOptions::default();
         opts.start_playing = true;
-        info!("[SPIRC] -> load(context={}, start_playing=true)", context_uri);
+        info!(
+            "[SPIRC] -> load(context={}, start_playing=true)",
+            context_uri
+        );
         let req = LoadRequest::from_context_uri(context_uri, opts);
         let _ = spirc_clone.load(req);
         info!("[SPIRC] load() context completed");
@@ -877,7 +905,10 @@ async fn seek(
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Seek request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     let _ = spirc.set_position_ms(payload.position_ms);
@@ -903,7 +934,10 @@ async fn set_shuffle(
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Shuffle request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     let _ = spirc.shuffle(payload.enabled);
@@ -925,11 +959,17 @@ async fn set_repeat(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<RepeatRequest>,
 ) -> (axum::http::StatusCode, &'static str) {
-    info!("Setting repeat (context={}, track={})", payload.context, payload.track);
+    info!(
+        "Setting repeat (context={}, track={})",
+        payload.context, payload.track
+    );
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
         warn!("Repeat request failed: No active Spotify session");
-        return (axum::http::StatusCode::BAD_REQUEST, "ERROR: No active session");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "ERROR: No active session",
+        );
     };
 
     let _ = spirc.repeat(payload.context);
@@ -977,7 +1017,12 @@ mod tests {
 
         let response = app
             .clone()
-            .oneshot(Request::builder().uri("/api/v1/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -991,7 +1036,12 @@ mod tests {
 
         // Also verify legacy /health route works
         let legacy_resp = app
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(legacy_resp.status(), StatusCode::OK);
@@ -1000,7 +1050,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_status_v1_includes_cached_track_metadata() {
         let state = make_test_state();
-        let track_uri = librespot_core::SpotifyUri::from_uri("spotify:track:4uLU6hMCjMI75M1A2tKUQC").unwrap();
+        let track_uri =
+            librespot_core::SpotifyUri::from_uri("spotify:track:4uLU6hMCjMI75M1A2tKUQC").unwrap();
         state
             .metadata_cache
             .insert_ready_for_test(
@@ -1017,7 +1068,12 @@ mod tests {
 
         let app = build_router(state);
         let response = app
-            .oneshot(Request::builder().uri("/api/v1/status").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/status")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -1041,7 +1097,12 @@ mod tests {
         // 1. Verify OpenAPI 3.1 JSON contains all REST paths AND WebSocket event schemas
         let oa_resp = app
             .clone()
-            .oneshot(Request::builder().uri("/api/v1/openapi.json").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/openapi.json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(oa_resp.status(), StatusCode::OK);
@@ -1057,7 +1118,12 @@ mod tests {
         // 2. Verify AsyncAPI 2.6.0 JSON describes the /api/v1/ws channel and messages
         let aa_resp = app
             .clone()
-            .oneshot(Request::builder().uri("/api/v1/asyncapi.json").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/asyncapi.json")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(aa_resp.status(), StatusCode::OK);
@@ -1080,10 +1146,21 @@ mod tests {
         let state = make_test_state();
         let app = build_router(state);
 
-        for uri in ["/api/v1/pause", "/api/v1/player/pause", "/pause", "/api/v1/next"] {
+        for uri in [
+            "/api/v1/pause",
+            "/api/v1/player/pause",
+            "/pause",
+            "/api/v1/next",
+        ] {
             let resp = app
                 .clone()
-                .oneshot(Request::builder().method("POST").uri(uri).body(Body::empty()).unwrap())
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
                 .await
                 .unwrap();
             assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
@@ -1093,9 +1170,14 @@ mod tests {
     #[tokio::test]
     async fn test_committed_specs_are_in_sync() {
         let openapi_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("openapi.json");
-        assert!(openapi_file.exists(), "openapi.json must exist in repo root");
-        let openapi_content = std::fs::read_to_string(&openapi_file).expect("Failed to read openapi.json");
-        let openapi_committed: serde_json::Value = serde_json::from_str(&openapi_content).expect("Invalid openapi.json");
+        assert!(
+            openapi_file.exists(),
+            "openapi.json must exist in repo root"
+        );
+        let openapi_content =
+            std::fs::read_to_string(&openapi_file).expect("Failed to read openapi.json");
+        let openapi_committed: serde_json::Value =
+            serde_json::from_str(&openapi_content).expect("Invalid openapi.json");
 
         let generated_openapi = serde_json::to_value(ApiDoc::openapi()).unwrap();
         assert_eq!(
@@ -1108,9 +1190,14 @@ mod tests {
         );
 
         let asyncapi_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("asyncapi.json");
-        assert!(asyncapi_file.exists(), "asyncapi.json must exist in repo root");
-        let asyncapi_content = std::fs::read_to_string(&asyncapi_file).expect("Failed to read asyncapi.json");
-        let asyncapi_committed: serde_json::Value = serde_json::from_str(&asyncapi_content).expect("Invalid asyncapi.json");
+        assert!(
+            asyncapi_file.exists(),
+            "asyncapi.json must exist in repo root"
+        );
+        let asyncapi_content =
+            std::fs::read_to_string(&asyncapi_file).expect("Failed to read asyncapi.json");
+        let asyncapi_committed: serde_json::Value =
+            serde_json::from_str(&asyncapi_content).expect("Invalid asyncapi.json");
 
         let generated_asyncapi = build_asyncapi_spec();
         assert_eq!(
@@ -1123,5 +1210,3 @@ mod tests {
         );
     }
 }
-
-

@@ -1,11 +1,11 @@
-use librespot_playback::player::PlayerEvent;
-use tokio::sync::{broadcast, mpsc};
-use serde::Serialize;
-use tracing::{info, error, warn};
-use std::time::Duration;
 use librespot_core::session::Session;
+use librespot_playback::player::PlayerEvent;
+use serde::Serialize;
+use std::time::Duration;
+use tokio::sync::{broadcast, mpsc};
+use tracing::{error, info, warn};
 
-use crate::metadata_cache::{MetadataCache, CacheResult};
+use crate::metadata_cache::{CacheResult, MetadataCache};
 use std::sync::Arc;
 use utoipa::ToSchema;
 
@@ -55,12 +55,15 @@ pub struct WebhookPayload {
 }
 
 pub enum AppEvent {
-    Connected { username: String, session: Session },
+    Connected {
+        username: String,
+        session: Session,
+    },
     Disconnected,
     Spotify(PlayerEvent),
-    Heartbeat { 
+    Heartbeat {
         track_id: String,
-        position_ms: u32, 
+        position_ms: u32,
         duration_ms: u32,
         interval_ms: u32,
         is_playing: bool,
@@ -132,7 +135,11 @@ fn dispatch_event_json<T: Serialize + Send + 'static>(
             match client_clone.post(&url_clone).json(&json_value).send().await {
                 Ok(resp) if resp.status().is_success() => break,
                 Ok(resp) => {
-                    warn!("Webhook returned error status {}: Retrying in {:?}...", resp.status(), wait);
+                    warn!(
+                        "Webhook returned error status {}: Retrying in {:?}...",
+                        resp.status(),
+                        wait
+                    );
                     if retries > 0 {
                         tokio::time::sleep(wait).await;
                         retries -= 1;
@@ -143,7 +150,10 @@ fn dispatch_event_json<T: Serialize + Send + 'static>(
                 }
                 Err(e) => {
                     if retries > 0 {
-                        warn!("Failed to send webhook ({} retries left): {}. Retrying in {:?}...", retries, e, wait);
+                        warn!(
+                            "Failed to send webhook ({} retries left): {}. Retrying in {:?}...",
+                            retries, e, wait
+                        );
                         tokio::time::sleep(wait).await;
                         retries -= 1;
                         wait *= 2;
@@ -166,7 +176,9 @@ pub async fn start_event_loop(
     shared_state: crate::state::SharedPlaybackState,
     state_file_path: std::path::PathBuf,
     metadata_cache: Arc<MetadataCache>,
-    spirc_handle: std::sync::Arc<tokio::sync::RwLock<Option<std::sync::Arc<librespot_connect::Spirc>>>>,
+    spirc_handle: std::sync::Arc<
+        tokio::sync::RwLock<Option<std::sync::Arc<librespot_connect::Spirc>>>,
+    >,
 ) {
     let client = reqwest::Client::new();
     let mut last_end_of_track_time: Option<u64> = None;
@@ -177,15 +189,24 @@ pub async fn start_event_loop(
 
     while let Some(app_event) = receiver.recv().await {
         let (event_name, volume, pos_ms, dur_ms, t_id, i_ms, is_playing_flag) = match app_event {
-            AppEvent::Connected { username, session: new_session } => {
+            AppEvent::Connected {
+                username,
+                session: new_session,
+            } => {
                 info!("Spotify Connected as {}", username);
                 session = Some(new_session.clone());
-                
+
                 let (has_track, is_playing, was_active, last_track, pos) = {
                     let mut state = crate::lock_state!(shared_state);
                     state.is_connected = true;
                     state.connected_user = Some(username);
-                    (state.last_track_uri.clone(), state.was_playing, state.was_active_device, state.last_track_uri.clone(), state.last_position)
+                    (
+                        state.last_track_uri.clone(),
+                        state.was_playing,
+                        state.was_active_device,
+                        state.last_track_uri.clone(),
+                        state.last_position,
+                    )
                 };
 
                 if was_active {
@@ -206,7 +227,15 @@ pub async fn start_event_loop(
                 }
 
                 if is_playing {
-                    ("playing", None, Some(pos), None, last_track, None, Some(true))
+                    (
+                        "playing",
+                        None,
+                        Some(pos),
+                        None,
+                        last_track,
+                        None,
+                        Some(true),
+                    )
                 } else {
                     ("connected", None, None, None, None, None, None)
                 }
@@ -221,24 +250,52 @@ pub async fn start_event_loop(
                 }
                 ("disconnected", None, None, None, None, None, None)
             }
-            AppEvent::Heartbeat { track_id, position_ms, duration_ms, interval_ms, is_playing } => {
+            AppEvent::Heartbeat {
+                track_id,
+                position_ms,
+                duration_ms,
+                interval_ms,
+                is_playing,
+            } => {
                 if session.is_none() {
                     continue;
                 }
-                ("heartbeat", None, Some(position_ms), Some(duration_ms), Some(track_id), Some(interval_ms), Some(is_playing))
+                (
+                    "heartbeat",
+                    None,
+                    Some(position_ms),
+                    Some(duration_ms),
+                    Some(track_id),
+                    Some(interval_ms),
+                    Some(is_playing),
+                )
             }
             AppEvent::Spotify(event) => {
                 match &event {
                     PlayerEvent::VolumeChanged { volume } => {
                         let percentage = (*volume as f64 / 65535.0 * 100.0).round() as u32;
-                        info!("Player event: VolumeSet (Volume: {} [{}%])", volume, percentage);
-                        
+                        info!(
+                            "Player event: VolumeSet (Volume: {} [{}%])",
+                            volume, percentage
+                        );
+
                         let mut state = crate::lock_state!(shared_state);
                         state.volume = percentage;
-                        state.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                        state.timestamp = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
                         state.save(&state_file_path);
 
-                        ("volume_set", Some(*volume as u32), None, None, None, None, None)
+                        (
+                            "volume_set",
+                            Some(*volume as u32),
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::TrackChanged { audio_item, .. } => {
                         let track_id = &audio_item.track_id;
@@ -246,10 +303,16 @@ pub async fn start_event_loop(
                         let mut state = crate::lock_state!(shared_state);
                         state.last_track_uri = Some(track_id.to_uri());
                         state.last_position = 0;
-                        state.position_updated_at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
-                        state.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                        state.position_updated_at_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as u64)
+                            .unwrap_or(0);
+                        state.timestamp = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
                         state.save(&state_file_path);
-                        
+
                         if let Some(ref s) = session {
                             tokio::spawn(fetch_and_send_metadata(
                                 s.clone(),
@@ -261,13 +324,21 @@ pub async fn start_event_loop(
                                 true,
                             ));
                         }
-                        
+
                         long_pause_detected = false;
                         last_pause_time = 0;
                         consecutive_eot_count = 0;
                         last_eot_track = None;
-                        
-                        ("changed", None, Some(0), None, Some(track_id.to_uri()), None, None)
+
+                        (
+                            "changed",
+                            None,
+                            Some(0),
+                            None,
+                            Some(track_id.to_uri()),
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::Stopped { .. } => {
                         info!("Player event: Stopped");
@@ -275,11 +346,17 @@ pub async fn start_event_loop(
                             let mut state = crate::lock_state!(shared_state);
                             state.was_playing = false;
                             state.was_active_device = false;
-                            state.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                            state.timestamp = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_secs())
+                                .unwrap_or(0);
                             state.save(&state_file_path);
                         }
 
-                        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as u64)
+                            .unwrap_or(0);
                         if let Some(eot) = last_end_of_track_time {
                             if now.saturating_sub(eot) < 3000 {
                                 warn!("Detected Stop immediately after EndOfTrack. Auto-engaging Autoplay queue to keep playback alive!");
@@ -288,7 +365,8 @@ pub async fn start_event_loop(
                                     tokio::spawn(async move {
                                         info!("[SPIRC] Auto-recovery: -> next() and play()");
                                         let _ = spirc_clone.next();
-                                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                                        tokio::time::sleep(tokio::time::Duration::from_millis(100))
+                                            .await;
                                         let _ = spirc_clone.play();
                                     });
                                 }
@@ -298,17 +376,30 @@ pub async fn start_event_loop(
 
                         ("stopped", None, None, None, None, None, Some(false))
                     }
-                    PlayerEvent::Playing { track_id, position_ms, .. } => {
-                        info!("Player event: Playing (Track: {:?}, Position: {}ms)", track_id, position_ms);
+                    PlayerEvent::Playing {
+                        track_id,
+                        position_ms,
+                        ..
+                    } => {
+                        info!(
+                            "Player event: Playing (Track: {:?}, Position: {}ms)",
+                            track_id, position_ms
+                        );
                         let mut state = crate::lock_state!(shared_state);
                         state.last_track_uri = Some(track_id.to_uri());
                         state.last_position = *position_ms;
-                        state.position_updated_at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                        state.position_updated_at_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as u64)
+                            .unwrap_or(0);
                         state.was_playing = true;
                         state.was_active_device = true;
-                        state.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                        state.timestamp = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
                         state.save(&state_file_path);
-                        
+
                         if let Some(ref s) = session {
                             tokio::spawn(fetch_and_send_metadata(
                                 s.clone(),
@@ -320,9 +411,14 @@ pub async fn start_event_loop(
                                 true,
                             ));
                         }
-                        
-                        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
-                        if last_pause_time > 0 && now.saturating_sub(last_pause_time) > 5 * 60 * 1000 {
+
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as u64)
+                            .unwrap_or(0);
+                        if last_pause_time > 0
+                            && now.saturating_sub(last_pause_time) > 5 * 60 * 1000
+                        {
                             long_pause_detected = true;
                             info!("Detected a pause longer than 5 minutes. Armed URL expiry workaround.");
                         }
@@ -331,19 +427,40 @@ pub async fn start_event_loop(
                         consecutive_eot_count = 0;
                         last_eot_track = None;
 
-                        ("playing", None, Some(*position_ms), None, Some(track_id.to_uri()), None, Some(true))
+                        (
+                            "playing",
+                            None,
+                            Some(*position_ms),
+                            None,
+                            Some(track_id.to_uri()),
+                            None,
+                            Some(true),
+                        )
                     }
-                    PlayerEvent::Paused { track_id, position_ms, .. } => {
-                        info!("Player event: Paused (Track: {:?}, Position: {}ms)", track_id, position_ms);
+                    PlayerEvent::Paused {
+                        track_id,
+                        position_ms,
+                        ..
+                    } => {
+                        info!(
+                            "Player event: Paused (Track: {:?}, Position: {}ms)",
+                            track_id, position_ms
+                        );
                         let mut state = crate::lock_state!(shared_state);
                         state.last_track_uri = Some(track_id.to_uri());
                         state.last_position = *position_ms;
-                        state.position_updated_at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                        state.position_updated_at_ms = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as u64)
+                            .unwrap_or(0);
                         state.was_playing = false;
                         state.was_active_device = true;
-                        state.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                        state.timestamp = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
                         state.save(&state_file_path);
-                        
+
                         if let Some(ref s) = session {
                             tokio::spawn(fetch_and_send_metadata(
                                 s.clone(),
@@ -355,18 +472,32 @@ pub async fn start_event_loop(
                                 true,
                             ));
                         }
-                        
-                        last_pause_time = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
 
-                        ("paused", None, Some(*position_ms), None, Some(track_id.to_uri()), None, Some(false))
+                        last_pause_time = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as u64)
+                            .unwrap_or(0);
+
+                        (
+                            "paused",
+                            None,
+                            Some(*position_ms),
+                            None,
+                            Some(track_id.to_uri()),
+                            None,
+                            Some(false),
+                        )
                     }
                     PlayerEvent::Loading { track_id, .. } => {
                         info!("Player event: Loading (Track: {:?})", track_id);
                         let mut state = crate::lock_state!(shared_state);
                         state.last_track_uri = Some(track_id.to_uri());
-                        state.timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                        state.timestamp = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
                         state.save(&state_file_path);
-                        
+
                         if let Some(ref s) = session {
                             tokio::spawn(fetch_and_send_metadata(
                                 s.clone(),
@@ -378,12 +509,20 @@ pub async fn start_event_loop(
                                 true,
                             ));
                         }
-                        
-                        ("loading", None, None, None, Some(track_id.to_uri()), None, None)
+
+                        (
+                            "loading",
+                            None,
+                            None,
+                            None,
+                            Some(track_id.to_uri()),
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::Preloading { track_id, .. } => {
                         info!("Player event: Preloading (Track: {:?})", track_id);
-                        
+
                         if let Some(ref s) = session {
                             tokio::spawn(fetch_and_send_metadata(
                                 s.clone(),
@@ -395,8 +534,16 @@ pub async fn start_event_loop(
                                 false, // Prefetch only into cache, do NOT send webhook for preloaded next track
                             ));
                         }
-                        
-                        ("preloading", None, None, None, Some(track_id.to_uri()), None, None)
+
+                        (
+                            "preloading",
+                            None,
+                            None,
+                            None,
+                            Some(track_id.to_uri()),
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::EndOfTrack { track_id, .. } => {
                         info!("Player event: EndOfTrack (Track: {:?})", track_id);
@@ -420,8 +567,21 @@ pub async fn start_event_loop(
                             consecutive_eot_count = 0;
                         }
 
-                        last_end_of_track_time = Some(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0));
-                        ("end_of_track", None, None, None, Some(track_uri_str), None, None)
+                        last_end_of_track_time = Some(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0),
+                        );
+                        (
+                            "end_of_track",
+                            None,
+                            None,
+                            None,
+                            Some(track_uri_str),
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::TimeToPreloadNextTrack { .. } => {
                         info!("Player event: TimeToPreloadNextTrack");
@@ -435,7 +595,10 @@ pub async fn start_event_loop(
                         ("shuffle_changed", None, None, None, None, None, None)
                     }
                     PlayerEvent::RepeatChanged { context, track } => {
-                        info!("Player event: RepeatChanged (context: {}, track: {})", context, track);
+                        info!(
+                            "Player event: RepeatChanged (context: {}, track: {})",
+                            context, track
+                        );
                         let mut state = crate::lock_state!(shared_state);
                         state.repeat_context = *context;
                         state.repeat_track = *track;
@@ -444,7 +607,15 @@ pub async fn start_event_loop(
                     }
                     PlayerEvent::Unavailable { track_id, .. } => {
                         info!("Player event: Unavailable (Track: {:?})", track_id);
-                        ("unavailable", None, None, None, Some(track_id.to_uri()), None, None)
+                        (
+                            "unavailable",
+                            None,
+                            None,
+                            None,
+                            Some(track_id.to_uri()),
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::SetQueue { context_uri, .. } => {
                         info!("Player event: SetQueue (Context: {})", context_uri);
@@ -470,26 +641,32 @@ pub async fn start_event_loop(
 
                         tokio::spawn(async move {
                             let mut context_name = None;
-                            
+
                             if let Some(session) = cloned_session {
                                 if !ctx_clone.is_empty() {
                                     use librespot_core::SpotifyUri;
-                                    use librespot_metadata::{Metadata, Playlist, Album, Artist};
-                                    
+                                    use librespot_metadata::{Album, Artist, Metadata, Playlist};
+
                                     if let Ok(uri) = SpotifyUri::from_uri(&ctx_clone) {
                                         match uri {
                                             SpotifyUri::Playlist { .. } => {
-                                                if let Ok(playlist) = Playlist::get(&session, &uri).await {
-                                                    context_name = Some(playlist.name().to_string());
+                                                if let Ok(playlist) =
+                                                    Playlist::get(&session, &uri).await
+                                                {
+                                                    context_name =
+                                                        Some(playlist.name().to_string());
                                                 }
                                             }
                                             SpotifyUri::Album { .. } => {
-                                                if let Ok(album) = Album::get(&session, &uri).await {
+                                                if let Ok(album) = Album::get(&session, &uri).await
+                                                {
                                                     context_name = Some(album.name.clone());
                                                 }
                                             }
                                             SpotifyUri::Artist { .. } => {
-                                                if let Ok(artist) = Artist::get(&session, &uri).await {
+                                                if let Ok(artist) =
+                                                    Artist::get(&session, &uri).await
+                                                {
                                                     context_name = Some(artist.name.clone());
                                                 }
                                             }
@@ -504,7 +681,7 @@ pub async fn start_event_loop(
                                 state.context_name = Some(resolved_name.clone());
                                 state.save(&state_file_path_clone);
                             }
-                            
+
                             let payload = WebhookPayload {
                                 group_id: group_id_clone,
                                 event: "set_queue".to_string(),
@@ -517,9 +694,17 @@ pub async fn start_event_loop(
                                 context_uri: Some(ctx_clone),
                                 context_name,
                             };
-                            
-                            info!("Dispatching event: set_queue (Context: {:?}, Name: {:?})", payload.context_uri, payload.context_name);
-                            dispatch_event_json(&payload, &ws_broadcast_clone, &webhook_url_clone, &client_clone);
+
+                            info!(
+                                "Dispatching event: set_queue (Context: {:?}, Name: {:?})",
+                                payload.context_uri, payload.context_name
+                            );
+                            dispatch_event_json(
+                                &payload,
+                                &ws_broadcast_clone,
+                                &webhook_url_clone,
+                                &client_clone,
+                            );
                         });
 
                         continue;
@@ -544,39 +729,89 @@ pub async fn start_event_loop(
                         ("autoplay_changed", None, None, None, None, None, None)
                     }
                     PlayerEvent::FilterExplicitContentChanged { filter } => {
-                        info!("Player event: FilterExplicitContentChanged (filter: {})", filter);
-                        ("filter_explicit_changed", None, None, None, None, None, None)
+                        info!(
+                            "Player event: FilterExplicitContentChanged (filter: {})",
+                            filter
+                        );
+                        (
+                            "filter_explicit_changed",
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::PlayRequestIdChanged { play_request_id } => {
-                        info!("Player event: PlayRequestIdChanged (id: {})", play_request_id);
-                        ("play_request_id_changed", None, None, None, None, None, None)
+                        info!(
+                            "Player event: PlayRequestIdChanged (id: {})",
+                            play_request_id
+                        );
+                        (
+                            "play_request_id_changed",
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::Seeked { position_ms, .. } => {
                         info!("Player event: Seeked (position: {}ms)", position_ms);
                         {
                             let mut state = crate::lock_state!(shared_state);
                             state.last_position = *position_ms;
-                            state.position_updated_at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                            state.position_updated_at_ms = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0);
                             state.save(&state_file_path);
                         }
                         ("seeked", None, Some(*position_ms), None, None, None, None)
                     }
                     PlayerEvent::PositionCorrection { position_ms, .. } => {
-                        info!("Player event: PositionCorrection (position: {}ms)", position_ms);
+                        info!(
+                            "Player event: PositionCorrection (position: {}ms)",
+                            position_ms
+                        );
                         {
                             let mut state = crate::lock_state!(shared_state);
                             state.last_position = *position_ms;
-                            state.position_updated_at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                            state.position_updated_at_ms = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0);
                         }
-                        ("position_correction", None, Some(*position_ms), None, None, None, None)
+                        (
+                            "position_correction",
+                            None,
+                            Some(*position_ms),
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
                     }
                     PlayerEvent::PositionChanged { position_ms, .. } => {
                         {
                             let mut state = crate::lock_state!(shared_state);
                             state.last_position = *position_ms;
-                            state.position_updated_at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                            state.position_updated_at_ms = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0);
                         }
-                        ("position_changed", None, Some(*position_ms), None, None, None, None)
+                        (
+                            "position_changed",
+                            None,
+                            Some(*position_ms),
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
                     }
                 }
             }
@@ -596,9 +831,17 @@ pub async fn start_event_loop(
         };
 
         if payload.event == "heartbeat" {
-            tracing::debug!("Dispatching event: {} (Vol: {:?}, Pos: {:?})", payload.event, payload.volume, payload.position_ms);
+            tracing::debug!(
+                "Dispatching event: {} (Vol: {:?}, Pos: {:?})",
+                payload.event,
+                payload.volume,
+                payload.position_ms
+            );
         } else {
-            info!("Dispatching event: {} (Vol: {:?}, Pos: {:?})", payload.event, payload.volume, payload.position_ms);
+            info!(
+                "Dispatching event: {} (Vol: {:?}, Pos: {:?})",
+                payload.event, payload.volume, payload.position_ms
+            );
         }
 
         dispatch_event_json(&payload, &ws_broadcast, &webhook_url, &client);
@@ -625,13 +868,19 @@ async fn fetch_and_send_metadata(
     };
 
     if !send_webhook {
-        info!("Prefetch-only: cached metadata for {:?}, not sending webhook", track_id);
+        info!(
+            "Prefetch-only: cached metadata for {:?}, not sending webhook",
+            track_id
+        );
         return;
     }
 
     // Atomically check if we should be the one to send the webhook for this track
     if !cache.try_mark_webhook_sent(&track_id).await {
-        info!("Skipping redundant metadata webhook for {:?} (already sent)", track_id);
+        info!(
+            "Skipping redundant metadata webhook for {:?} (already sent)",
+            track_id
+        );
         return;
     }
 
@@ -646,7 +895,10 @@ async fn fetch_and_send_metadata(
         cover_url: meta.cover_url,
     };
 
-    info!("Dispatching metadata update for {}: {} - {}", payload.group_id, payload.title, payload.artist);
+    info!(
+        "Dispatching metadata update for {}: {} - {}",
+        payload.group_id, payload.title, payload.artist
+    );
     let client = reqwest::Client::new();
     dispatch_event_json(&payload, &ws_broadcast, &webhook_url, &client);
 }
@@ -719,11 +971,13 @@ mod tests {
 
         let v1: serde_json::Value = serde_json::from_str(&msg1).unwrap();
         let v2: serde_json::Value = serde_json::from_str(&msg2).unwrap();
-        let events = vec![v1["Event"].as_str().unwrap().to_string(), v2["Event"].as_str().unwrap().to_string()];
+        let events = vec![
+            v1["Event"].as_str().unwrap().to_string(),
+            v2["Event"].as_str().unwrap().to_string(),
+        ];
 
         assert!(!events.contains(&"ignore".to_string()));
         assert!(events.contains(&"set_queue".to_string()));
         assert!(events.contains(&"disconnected".to_string()));
     }
 }
-
