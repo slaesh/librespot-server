@@ -1,6 +1,6 @@
 [package]
 name = "librespot-server"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Headless Spotify Connect daemon with REST API, WebSocket event stream, metadata cache, and FIFO audio sink"
 license = "MIT"
