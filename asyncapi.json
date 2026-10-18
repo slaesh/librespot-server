@@ -1,548 +1,548 @@
 {
-    "asyncapi": "2.6.0",
-    "channels": {
-        "/api/v1/ws": {
-            "description": "Real-time WebSocket stream. Immediately sends `InitialStateEvent` upon connection, followed by `WebhookPayload` and `MetadataPayload` messages.",
-            "subscribe": {
-                "message": {
-                    "oneOf": [
-                        {
-                            "$ref": "#/components/messages/InitialStateMessage"
-                        },
-                        {
-                            "$ref": "#/components/messages/PlayerEventMessage"
-                        },
-                        {
-                            "$ref": "#/components/messages/MetadataUpdateMessage"
-                        }
-                    ]
-                },
-                "operationId": "subscribeNodeEvents",
-                "summary": "Receive real-time player and metadata events from the Spotify node"
-            }
-        }
-    },
-    "components": {
-        "messages": {
-            "InitialStateMessage": {
-                "name": "InitialStateEvent",
-                "payload": {
-                    "$ref": "#/components/schemas/InitialStateEvent"
-                },
-                "summary": "Sent immediately as the first frame after WebSocket upgrade (`Event = \"initial_state\"`).",
-                "title": "Initial State Snapshot"
+  "asyncapi": "2.6.0",
+  "channels": {
+    "/api/v1/ws": {
+      "description": "Real-time WebSocket stream. Immediately sends `InitialStateEvent` upon connection, followed by `WebhookPayload` and `MetadataPayload` messages.",
+      "subscribe": {
+        "message": {
+          "oneOf": [
+            {
+              "$ref": "#/components/messages/InitialStateMessage"
             },
-            "MetadataUpdateMessage": {
-                "name": "MetadataPayload",
-                "payload": {
-                    "$ref": "#/components/schemas/MetadataPayload"
-                },
-                "summary": "Sent once per track when title, artist, album, duration, and cover URL are resolved (`Event = \"metadata_update\"`).",
-                "title": "Track Metadata Update"
+            {
+              "$ref": "#/components/messages/PlayerEventMessage"
             },
-            "PlayerEventMessage": {
-                "name": "WebhookPayload",
-                "payload": {
-                    "$ref": "#/components/schemas/WebhookPayload"
-                },
-                "summary": "Sent on playback state changes, volume changes, queue changes, and 10s heartbeats.",
-                "title": "Player State Event"
+            {
+              "$ref": "#/components/messages/MetadataUpdateMessage"
             }
+          ]
         },
-        "schemas": {
-            "HealthResponse": {
-                "description": "Health check response returned by `GET /api/v1/health`.",
-                "properties": {
-                    "device_name": {
-                        "description": "Display name advertised via Spotify Connect / mDNS.",
-                        "example": "Living Room",
-                        "type": "string"
-                    },
-                    "is_connected": {
-                        "description": "Whether an authenticated Spotify session is currently connected.",
-                        "example": true,
-                        "type": "boolean"
-                    },
-                    "node_id": {
-                        "description": "Configured node / room group identifier.",
-                        "example": "living-room",
-                        "type": "string"
-                    },
-                    "status": {
-                        "description": "Service health status (`\"ok\"`).",
-                        "example": "ok",
-                        "type": "string"
-                    },
-                    "version": {
-                        "description": "Running `spotify-node` version.",
-                        "example": "0.2.0",
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "status",
-                    "version",
-                    "node_id",
-                    "device_name",
-                    "is_connected"
-                ],
-                "type": "object"
-            },
-            "InitialStateEvent": {
-                "description": "Initial state packet sent immediately as the first WebSocket message upon connecting to `GET /api/v1/ws`.",
-                "properties": {
-                    "Event": {
-                        "description": "Always `\"initial_state\"`.",
-                        "example": "initial_state",
-                        "type": "string"
-                    },
-                    "GroupId": {
-                        "description": "Unique identifier of the Spotify node / room group.",
-                        "example": "living-room",
-                        "type": "string"
-                    },
-                    "Status": {
-                        "$ref": "#/components/schemas/NodeStatusResponse",
-                        "description": "Complete node status snapshot at the moment of WebSocket connection."
-                    }
-                },
-                "required": [
-                    "GroupId",
-                    "Event",
-                    "Status"
-                ],
-                "type": "object"
-            },
-            "MetadataPayload": {
-                "description": "Rich track metadata event emitted once per track when resolved from Spotify (`Event = \"metadata_update\"`).",
-                "properties": {
-                    "Album": {
-                        "description": "Album title.",
-                        "example": "Whenever You Need Somebody",
-                        "type": "string"
-                    },
-                    "Artist": {
-                        "description": "Comma-separated artist names.",
-                        "example": "Rick Astley",
-                        "type": "string"
-                    },
-                    "CoverUrl": {
-                        "description": "Full HTTPS URL to the album cover image on Spotify's CDN.",
-                        "example": "https://i.scdn.co/image/ab67616d0000b2735755e164993798e0c9ef7d7a",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "DurationMs": {
-                        "description": "Track duration in milliseconds.",
-                        "example": 213573,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "Event": {
-                        "description": "Always `\"metadata_update\"`.",
-                        "example": "metadata_update",
-                        "type": "string"
-                    },
-                    "GroupId": {
-                        "description": "Unique identifier of the Spotify node / room group.",
-                        "example": "living-room",
-                        "type": "string"
-                    },
-                    "Title": {
-                        "description": "Track title.",
-                        "example": "Never Gonna Give You Up",
-                        "type": "string"
-                    },
-                    "TrackId": {
-                        "description": "Spotify track URI (`spotify:track:...`).",
-                        "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "GroupId",
-                    "Event",
-                    "TrackId",
-                    "Title",
-                    "Artist",
-                    "Album",
-                    "DurationMs"
-                ],
-                "type": "object"
-            },
-            "NodeStatusResponse": {
-                "description": "Comprehensive live status snapshot returned by `GET /api/v1/status` and inside the WebSocket `initial_state` packet.",
-                "properties": {
-                    "autoplay": {
-                        "description": "Whether endless autoplay radio is enabled.",
-                        "example": true,
-                        "type": "boolean"
-                    },
-                    "connected_user": {
-                        "description": "Username of the currently connected Spotify account.",
-                        "example": "alice",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "context_name": {
-                        "description": "Human-readable name of the active context.",
-                        "example": "Today's Top Hits",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "context_uri": {
-                        "description": "Active context URI (`spotify:playlist:...`, `spotify:album:...`, etc.).",
-                        "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "current_track_uri": {
-                        "description": "Currently loaded track URI (`spotify:track:...`).",
-                        "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "device_name": {
-                        "description": "Display name advertised via Spotify Connect / mDNS.",
-                        "example": "Living Room",
-                        "type": "string"
-                    },
-                    "is_active_device": {
-                        "description": "Whether this node is the active Spotify Connect playback target.",
-                        "example": true,
-                        "type": "boolean"
-                    },
-                    "is_connected": {
-                        "description": "Whether an authenticated Spotify session is currently connected.",
-                        "example": true,
-                        "type": "boolean"
-                    },
-                    "is_playing": {
-                        "description": "Whether audio is actively playing right now.",
-                        "example": true,
-                        "type": "boolean"
-                    },
-                    "node_id": {
-                        "description": "Configured node / room group identifier.",
-                        "example": "living-room",
-                        "type": "string"
-                    },
-                    "position_ms": {
-                        "description": "Live estimated playback position in milliseconds.",
-                        "example": 45210,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "repeat_context": {
-                        "description": "Whether context repeat is enabled.",
-                        "example": false,
-                        "type": "boolean"
-                    },
-                    "repeat_track": {
-                        "description": "Whether single-track repeat is enabled.",
-                        "example": false,
-                        "type": "boolean"
-                    },
-                    "shuffle": {
-                        "description": "Whether shuffle mode is enabled.",
-                        "example": false,
-                        "type": "boolean"
-                    },
-                    "track": {
-                        "oneOf": [
-                            {
-                                "type": "null"
-                            },
-                            {
-                                "$ref": "#/components/schemas/TrackMetadataDto",
-                                "description": "Cached rich metadata for the current track (if resolved)."
-                            }
-                        ]
-                    },
-                    "version": {
-                        "description": "Running `spotify-node` version.",
-                        "example": "0.2.0",
-                        "type": "string"
-                    },
-                    "volume": {
-                        "description": "Current volume percentage (`0..=100`).",
-                        "example": 50,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": "integer"
-                    }
-                },
-                "required": [
-                    "node_id",
-                    "device_name",
-                    "version",
-                    "is_connected",
-                    "is_playing",
-                    "is_active_device",
-                    "volume",
-                    "position_ms",
-                    "shuffle",
-                    "repeat_context",
-                    "repeat_track",
-                    "autoplay"
-                ],
-                "type": "object"
-            },
-            "PlayContextRequest": {
-                "description": "Request payload to load and play a Spotify context URI (playlist, album, artist, or station).",
-                "properties": {
-                    "context_uri": {
-                        "description": "Spotify context URI (`spotify:playlist:...`, `spotify:album:...`, `spotify:artist:...`).",
-                        "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "context_uri"
-                ],
-                "type": "object"
-            },
-            "RepeatRequest": {
-                "description": "Request payload to configure context and single-track repeat modes.",
-                "properties": {
-                    "context": {
-                        "description": "Repeat the entire context (playlist/album).",
-                        "example": true,
-                        "type": "boolean"
-                    },
-                    "track": {
-                        "description": "Repeat the current track continuously.",
-                        "example": false,
-                        "type": "boolean"
-                    }
-                },
-                "type": "object"
-            },
-            "SeekRequest": {
-                "description": "Request payload to seek to a specific track position in milliseconds.",
-                "properties": {
-                    "position_ms": {
-                        "description": "Target playback position in milliseconds.",
-                        "example": 60000,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": "integer"
-                    }
-                },
-                "required": [
-                    "position_ms"
-                ],
-                "type": "object"
-            },
-            "ShuffleRequest": {
-                "description": "Request payload to enable or disable shuffle mode.",
-                "properties": {
-                    "enabled": {
-                        "description": "`true` to enable shuffle, `false` to disable.",
-                        "example": true,
-                        "type": "boolean"
-                    }
-                },
-                "required": [
-                    "enabled"
-                ],
-                "type": "object"
-            },
-            "TrackMetadataDto": {
-                "description": "Resolved metadata for a Spotify track.",
-                "properties": {
-                    "album": {
-                        "description": "Album title.",
-                        "example": "Whenever You Need Somebody",
-                        "type": "string"
-                    },
-                    "artist": {
-                        "description": "Comma-separated artist names.",
-                        "example": "Rick Astley",
-                        "type": "string"
-                    },
-                    "cover_url": {
-                        "description": "HTTPS URL to the album cover artwork on Spotify's CDN.",
-                        "example": "https://i.scdn.co/image/ab67616d0000b2735755e164993798e0c9ef7d7a",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "duration_ms": {
-                        "description": "Track duration in milliseconds.",
-                        "example": 213573,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": "integer"
-                    },
-                    "title": {
-                        "description": "Track title.",
-                        "example": "Never Gonna Give You Up",
-                        "type": "string"
-                    },
-                    "track_id": {
-                        "description": "Spotify track URI (`spotify:track:...`).",
-                        "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
-                        "type": "string"
-                    }
-                },
-                "required": [
-                    "track_id",
-                    "title",
-                    "artist",
-                    "album",
-                    "duration_ms"
-                ],
-                "type": "object"
-            },
-            "VolumeRequest": {
-                "description": "Request payload to set the playback volume percentage (`0..=100`).",
-                "properties": {
-                    "volume": {
-                        "description": "Target volume percentage (`0` to `100`).",
-                        "example": 50,
-                        "format": "int32",
-                        "maximum": 100,
-                        "minimum": 0,
-                        "type": "integer"
-                    }
-                },
-                "required": [
-                    "volume"
-                ],
-                "type": "object"
-            },
-            "WebSocketEventPacket": {
-                "description": "Union (`oneOf`) of all real-time JSON packets emitted over the WebSocket (`GET /api/v1/ws`) and optional HTTP Webhook (`WEBHOOK_URL`).\n\nCode generators (NSwag, Kiota, openapi-typescript, etc.) generate strongly-typed models for all three variants directly from `openapi.json`.",
-                "oneOf": [
-                    {
-                        "$ref": "#/components/schemas/InitialStateEvent",
-                        "description": "Emitted immediately upon WebSocket connection (`Event = \"initial_state\"`)."
-                    },
-                    {
-                        "$ref": "#/components/schemas/WebhookPayload",
-                        "description": "Emitted on player state changes (`Event = \"playing\" | \"paused\" | \"stopped\" | \"volume_set\" | \"heartbeat\" | \"set_queue\" | ...`)."
-                    },
-                    {
-                        "$ref": "#/components/schemas/MetadataPayload",
-                        "description": "Emitted when rich track metadata is resolved (`Event = \"metadata_update\"`)."
-                    }
-                ]
-            },
-            "WebhookPayload": {
-                "description": "Real-time player state event emitted via WebSocket (`/api/v1/ws`) and optional HTTP Webhook (`WEBHOOK_URL`).",
-                "properties": {
-                    "ContextName": {
-                        "description": "Resolved human-readable name of the playlist, album, or artist context.",
-                        "example": "Today's Top Hits",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "ContextUri": {
-                        "description": "Active playback context URI (`spotify:playlist:...`, `spotify:album:...`, `spotify:artist:...`).",
-                        "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "DurationMs": {
-                        "description": "Track duration in milliseconds (if known at event time).",
-                        "example": 213573,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
-                    },
-                    "Event": {
-                        "description": "Event type (`playing`, `paused`, `stopped`, `changed`, `volume_set`, `heartbeat`, `set_queue`, `seeked`, `connected`, `disconnected`, etc.).",
-                        "example": "playing",
-                        "type": "string"
-                    },
-                    "GroupId": {
-                        "description": "Unique identifier of the Spotify node / room group.",
-                        "example": "living-room",
-                        "type": "string"
-                    },
-                    "IntervalMs": {
-                        "description": "Heartbeat interval in milliseconds (present on `heartbeat` events).",
-                        "example": 10000,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
-                    },
-                    "IsPlaying": {
-                        "description": "Whether the player is actively playing audio.",
-                        "example": true,
-                        "type": [
-                            "boolean",
-                            "null"
-                        ]
-                    },
-                    "PositionMs": {
-                        "description": "Current playback position in milliseconds.",
-                        "example": 45210,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
-                    },
-                    "TrackId": {
-                        "description": "Spotify track URI (`spotify:track:...`).",
-                        "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "Volume": {
-                        "description": "Raw 16-bit Spotify volume (`0..=65535`), present on `volume_set` events.",
-                        "example": 32768,
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
-                    }
-                },
-                "required": [
-                    "GroupId",
-                    "Event"
-                ],
-                "type": "object"
-            }
-        }
-    },
-    "defaultContentType": "application/json",
-    "info": {
-        "description": "Real-time event stream emitted by `librespot-server` over WebSocket (`GET /api/v1/ws`) and optional HTTP POST Webhook (`WEBHOOK_URL`).",
-        "license": {
-            "name": "MIT"
-        },
-        "title": "Librespot Server WebSocket & Webhook Events API",
-        "version": "0.3.0"
+        "operationId": "subscribeNodeEvents",
+        "summary": "Receive real-time player and metadata events from the Spotify node"
+      }
     }
+  },
+  "components": {
+    "messages": {
+      "InitialStateMessage": {
+        "name": "InitialStateEvent",
+        "payload": {
+          "$ref": "#/components/schemas/InitialStateEvent"
+        },
+        "summary": "Sent immediately as the first frame after WebSocket upgrade (`Event = \"initial_state\"`).",
+        "title": "Initial State Snapshot"
+      },
+      "MetadataUpdateMessage": {
+        "name": "MetadataPayload",
+        "payload": {
+          "$ref": "#/components/schemas/MetadataPayload"
+        },
+        "summary": "Sent once per track when title, artist, album, duration, and cover URL are resolved (`Event = \"metadata_update\"`).",
+        "title": "Track Metadata Update"
+      },
+      "PlayerEventMessage": {
+        "name": "WebhookPayload",
+        "payload": {
+          "$ref": "#/components/schemas/WebhookPayload"
+        },
+        "summary": "Sent on playback state changes, volume changes, queue changes, and 10s heartbeats.",
+        "title": "Player State Event"
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "description": "Health check response returned by `GET /api/v1/health`.",
+        "properties": {
+          "device_name": {
+            "description": "Display name advertised via Spotify Connect / mDNS.",
+            "example": "Living Room",
+            "type": "string"
+          },
+          "is_connected": {
+            "description": "Whether an authenticated Spotify session is currently connected.",
+            "example": true,
+            "type": "boolean"
+          },
+          "node_id": {
+            "description": "Configured node / room group identifier.",
+            "example": "living-room",
+            "type": "string"
+          },
+          "status": {
+            "description": "Service health status (`\"ok\"`).",
+            "example": "ok",
+            "type": "string"
+          },
+          "version": {
+            "description": "Running `spotify-node` version.",
+            "example": "0.2.0",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "node_id",
+          "device_name",
+          "is_connected"
+        ],
+        "type": "object"
+      },
+      "InitialStateEvent": {
+        "description": "Initial state packet sent immediately as the first WebSocket message upon connecting to `GET /api/v1/ws`.",
+        "properties": {
+          "Event": {
+            "description": "Always `\"initial_state\"`.",
+            "example": "initial_state",
+            "type": "string"
+          },
+          "GroupId": {
+            "description": "Unique identifier of the Spotify node / room group.",
+            "example": "living-room",
+            "type": "string"
+          },
+          "Status": {
+            "$ref": "#/components/schemas/NodeStatusResponse",
+            "description": "Complete node status snapshot at the moment of WebSocket connection."
+          }
+        },
+        "required": [
+          "GroupId",
+          "Event",
+          "Status"
+        ],
+        "type": "object"
+      },
+      "MetadataPayload": {
+        "description": "Rich track metadata event emitted once per track when resolved from Spotify (`Event = \"metadata_update\"`).",
+        "properties": {
+          "Album": {
+            "description": "Album title.",
+            "example": "Whenever You Need Somebody",
+            "type": "string"
+          },
+          "Artist": {
+            "description": "Comma-separated artist names.",
+            "example": "Rick Astley",
+            "type": "string"
+          },
+          "CoverUrl": {
+            "description": "Full HTTPS URL to the album cover image on Spotify's CDN.",
+            "example": "https://i.scdn.co/image/ab67616d0000b2735755e164993798e0c9ef7d7a",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "DurationMs": {
+            "description": "Track duration in milliseconds.",
+            "example": 213573,
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "Event": {
+            "description": "Always `\"metadata_update\"`.",
+            "example": "metadata_update",
+            "type": "string"
+          },
+          "GroupId": {
+            "description": "Unique identifier of the Spotify node / room group.",
+            "example": "living-room",
+            "type": "string"
+          },
+          "Title": {
+            "description": "Track title.",
+            "example": "Never Gonna Give You Up",
+            "type": "string"
+          },
+          "TrackId": {
+            "description": "Spotify track URI (`spotify:track:...`).",
+            "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+            "type": "string"
+          }
+        },
+        "required": [
+          "GroupId",
+          "Event",
+          "TrackId",
+          "Title",
+          "Artist",
+          "Album",
+          "DurationMs"
+        ],
+        "type": "object"
+      },
+      "NodeStatusResponse": {
+        "description": "Comprehensive live status snapshot returned by `GET /api/v1/status` and inside the WebSocket `initial_state` packet.",
+        "properties": {
+          "autoplay": {
+            "description": "Whether endless autoplay radio is enabled.",
+            "example": true,
+            "type": "boolean"
+          },
+          "connected_user": {
+            "description": "Username of the currently connected Spotify account.",
+            "example": "alice",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "context_name": {
+            "description": "Human-readable name of the active context.",
+            "example": "Today's Top Hits",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "context_uri": {
+            "description": "Active context URI (`spotify:playlist:...`, `spotify:album:...`, etc.).",
+            "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current_track_uri": {
+            "description": "Currently loaded track URI (`spotify:track:...`).",
+            "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "device_name": {
+            "description": "Display name advertised via Spotify Connect / mDNS.",
+            "example": "Living Room",
+            "type": "string"
+          },
+          "is_active_device": {
+            "description": "Whether this node is the active Spotify Connect playback target.",
+            "example": true,
+            "type": "boolean"
+          },
+          "is_connected": {
+            "description": "Whether an authenticated Spotify session is currently connected.",
+            "example": true,
+            "type": "boolean"
+          },
+          "is_playing": {
+            "description": "Whether audio is actively playing right now.",
+            "example": true,
+            "type": "boolean"
+          },
+          "node_id": {
+            "description": "Configured node / room group identifier.",
+            "example": "living-room",
+            "type": "string"
+          },
+          "position_ms": {
+            "description": "Live estimated playback position in milliseconds.",
+            "example": 45210,
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "repeat_context": {
+            "description": "Whether context repeat is enabled.",
+            "example": false,
+            "type": "boolean"
+          },
+          "repeat_track": {
+            "description": "Whether single-track repeat is enabled.",
+            "example": false,
+            "type": "boolean"
+          },
+          "shuffle": {
+            "description": "Whether shuffle mode is enabled.",
+            "example": false,
+            "type": "boolean"
+          },
+          "track": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TrackMetadataDto",
+                "description": "Cached rich metadata for the current track (if resolved)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "description": "Running `spotify-node` version.",
+            "example": "0.2.0",
+            "type": "string"
+          },
+          "volume": {
+            "description": "Current volume percentage (`0..=100`).",
+            "example": 50,
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "node_id",
+          "device_name",
+          "version",
+          "is_connected",
+          "is_playing",
+          "is_active_device",
+          "volume",
+          "position_ms",
+          "shuffle",
+          "repeat_context",
+          "repeat_track",
+          "autoplay"
+        ],
+        "type": "object"
+      },
+      "PlayContextRequest": {
+        "description": "Request payload to load and play a Spotify context URI (playlist, album, artist, or station).",
+        "properties": {
+          "context_uri": {
+            "description": "Spotify context URI (`spotify:playlist:...`, `spotify:album:...`, `spotify:artist:...`).",
+            "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_uri"
+        ],
+        "type": "object"
+      },
+      "RepeatRequest": {
+        "description": "Request payload to configure context and single-track repeat modes.",
+        "properties": {
+          "context": {
+            "description": "Repeat the entire context (playlist/album).",
+            "example": true,
+            "type": "boolean"
+          },
+          "track": {
+            "description": "Repeat the current track continuously.",
+            "example": false,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SeekRequest": {
+        "description": "Request payload to seek to a specific track position in milliseconds.",
+        "properties": {
+          "position_ms": {
+            "description": "Target playback position in milliseconds.",
+            "example": 60000,
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position_ms"
+        ],
+        "type": "object"
+      },
+      "ShuffleRequest": {
+        "description": "Request payload to enable or disable shuffle mode.",
+        "properties": {
+          "enabled": {
+            "description": "`true` to enable shuffle, `false` to disable.",
+            "example": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "TrackMetadataDto": {
+        "description": "Resolved metadata for a Spotify track.",
+        "properties": {
+          "album": {
+            "description": "Album title.",
+            "example": "Whenever You Need Somebody",
+            "type": "string"
+          },
+          "artist": {
+            "description": "Comma-separated artist names.",
+            "example": "Rick Astley",
+            "type": "string"
+          },
+          "cover_url": {
+            "description": "HTTPS URL to the album cover artwork on Spotify's CDN.",
+            "example": "https://i.scdn.co/image/ab67616d0000b2735755e164993798e0c9ef7d7a",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "description": "Track duration in milliseconds.",
+            "example": 213573,
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "description": "Track title.",
+            "example": "Never Gonna Give You Up",
+            "type": "string"
+          },
+          "track_id": {
+            "description": "Spotify track URI (`spotify:track:...`).",
+            "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+            "type": "string"
+          }
+        },
+        "required": [
+          "track_id",
+          "title",
+          "artist",
+          "album",
+          "duration_ms"
+        ],
+        "type": "object"
+      },
+      "VolumeRequest": {
+        "description": "Request payload to set the playback volume percentage (`0..=100`).",
+        "properties": {
+          "volume": {
+            "description": "Target volume percentage (`0` to `100`).",
+            "example": 50,
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "volume"
+        ],
+        "type": "object"
+      },
+      "WebSocketEventPacket": {
+        "description": "Union (`oneOf`) of all real-time JSON packets emitted over the WebSocket (`GET /api/v1/ws`) and optional HTTP Webhook (`WEBHOOK_URL`).\n\nCode generators (NSwag, Kiota, openapi-typescript, etc.) generate strongly-typed models for all three variants directly from `openapi.json`.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/InitialStateEvent",
+            "description": "Emitted immediately upon WebSocket connection (`Event = \"initial_state\"`)."
+          },
+          {
+            "$ref": "#/components/schemas/WebhookPayload",
+            "description": "Emitted on player state changes (`Event = \"playing\" | \"paused\" | \"stopped\" | \"volume_set\" | \"heartbeat\" | \"set_queue\" | ...`)."
+          },
+          {
+            "$ref": "#/components/schemas/MetadataPayload",
+            "description": "Emitted when rich track metadata is resolved (`Event = \"metadata_update\"`)."
+          }
+        ]
+      },
+      "WebhookPayload": {
+        "description": "Real-time player state event emitted via WebSocket (`/api/v1/ws`) and optional HTTP Webhook (`WEBHOOK_URL`).",
+        "properties": {
+          "ContextName": {
+            "description": "Resolved human-readable name of the playlist, album, or artist context.",
+            "example": "Today's Top Hits",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ContextUri": {
+            "description": "Active playback context URI (`spotify:playlist:...`, `spotify:album:...`, `spotify:artist:...`).",
+            "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "DurationMs": {
+            "description": "Track duration in milliseconds (if known at event time).",
+            "example": 213573,
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "Event": {
+            "description": "Event type (`playing`, `paused`, `stopped`, `changed`, `volume_set`, `heartbeat`, `set_queue`, `seeked`, `connected`, `disconnected`, etc.).",
+            "example": "playing",
+            "type": "string"
+          },
+          "GroupId": {
+            "description": "Unique identifier of the Spotify node / room group.",
+            "example": "living-room",
+            "type": "string"
+          },
+          "IntervalMs": {
+            "description": "Heartbeat interval in milliseconds (present on `heartbeat` events).",
+            "example": 10000,
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "IsPlaying": {
+            "description": "Whether the player is actively playing audio.",
+            "example": true,
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "PositionMs": {
+            "description": "Current playback position in milliseconds.",
+            "example": 45210,
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "TrackId": {
+            "description": "Spotify track URI (`spotify:track:...`).",
+            "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "Volume": {
+            "description": "Raw 16-bit Spotify volume (`0..=65535`), present on `volume_set` events.",
+            "example": 32768,
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "GroupId",
+          "Event"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "defaultContentType": "application/json",
+  "info": {
+    "description": "Real-time event stream emitted by `spotify-node` over WebSocket (`GET /api/v1/ws`) and optional HTTP POST Webhook (`WEBHOOK_URL`).",
+    "license": {
+      "name": "MIT"
+    },
+    "title": "Spotify Node WebSocket & Webhook Events API",
+    "version": "0.3.0"
+  }
 }
