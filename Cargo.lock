@@ -1662,7 +1662,7 @@ dependencies = [
  "librespot-protocol",
  "log",
  "protobuf 2.28.0",
- "rand 0.8.8",
+ "rand 0.9.5",
  "reqwest 0.13.5",
  "serde",
  "serde_json",
