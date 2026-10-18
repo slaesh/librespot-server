@@ -20,7 +20,7 @@ librespot-protocol = { git = "https://github.com/librespot-org/librespot.git" }
 librespot-metadata = { git = "https://github.com/librespot-org/librespot.git" }
 librespot-oauth = { git = "https://github.com/librespot-org/librespot.git" }
 librespot-connect = { git = "https://github.com/librespot-org/librespot.git" }
-axum = { version = "0.7", features = ["ws"] }
+axum = { version = "0.8", features = ["ws"] }
 utoipa = { version = "6", features = ["axum_extras"] }
 reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
