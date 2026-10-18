@@ -75,7 +75,7 @@
           },
           "version": {
             "description": "Running `spotify-node` version.",
-            "example": "0.2.0",
+            "example": "0.3.0",
             "type": "string"
           }
         },
@@ -273,7 +273,7 @@
           },
           "version": {
             "description": "Running `spotify-node` version.",
-            "example": "0.2.0",
+            "example": "0.3.0",
             "type": "string"
           },
           "volume": {

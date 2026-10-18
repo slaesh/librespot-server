@@ -70,7 +70,7 @@ pub struct HealthResponse {
     #[schema(example = "ok")]
     pub status: String,
     /// Running `spotify-node` version.
-    #[schema(example = "0.2.0")]
+    #[schema(example = "0.3.0")]
     pub version: String,
     /// Configured node / room group identifier.
     #[schema(example = "living-room")]
@@ -116,7 +116,7 @@ pub struct NodeStatusResponse {
     #[schema(example = "Living Room")]
     pub device_name: String,
     /// Running `spotify-node` version.
-    #[schema(example = "0.2.0")]
+    #[schema(example = "0.3.0")]
     pub version: String,
     /// Whether an authenticated Spotify session is currently connected.
     #[schema(example = true)]
@@ -192,14 +192,23 @@ pub enum WebSocketEventPacket {
     MetadataUpdate(MetadataPayload),
 }
 
+struct VersionModifier;
+
+impl utoipa::Modify for VersionModifier {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        openapi.info.version = env!("CARGO_PKG_VERSION").to_string();
+    }
+}
+
 #[derive(OpenApi)]
 #[openapi(
     info(
         title = "Librespot Server API (librespot-server)",
-        version = "0.2.0",
+        version = "0.3.0",
         description = "Headless Spotify Connect daemon with versioned REST control API (`/api/v1`), real-time WebSocket event stream (`/api/v1/ws`), AsyncAPI specification (`/api/v1/asyncapi.json`), and optional outgoing HTTP webhooks.",
         license(name = "MIT")
     ),
+    modifiers(&VersionModifier),
     paths(
         get_health,
         get_status,

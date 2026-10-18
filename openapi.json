@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -448,7 +448,7 @@
           "version": {
             "type": "string",
             "description": "Running `spotify-node` version.",
-            "example": "0.2.0"
+            "example": "0.3.0"
           }
         }
       },
@@ -653,7 +653,7 @@
           "version": {
             "type": "string",
             "description": "Running `spotify-node` version.",
-            "example": "0.2.0"
+            "example": "0.3.0"
           },
           "volume": {
             "type": "integer",

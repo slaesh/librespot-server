@@ -35,8 +35,8 @@ A unit test (`test_committed_specs_are_in_sync`) in CI enforces that `openapi.js
 
 This repository follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification for automated release management (`release-please`):
 
-- `feat: ...` — Introduces a new feature (triggers a **Minor** version bump, e.g. `0.2.0` -> `0.3.0`).
-- `fix: ...` — Fixes a bug (triggers a **Patch** version bump, e.g. `0.2.0` -> `0.2.1`).
+- `feat: ...` — Introduces a new feature (triggers a **Minor** version bump, e.g. `0.3.0` -> `0.4.0`).
+- `fix: ...` — Fixes a bug (triggers a **Patch** version bump, e.g. `0.3.0` -> `0.3.1`).
 - `feat!: ...` or `fix!: ...` — Introduces a breaking change (triggers a **Major** version bump).
 - `docs: ...` — Documentation changes only.
 - `chore: ...` — Build process, dependencies, or tooling changes.

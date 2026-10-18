@@ -47,8 +47,8 @@ docker compose up -d
 | Tag | Target | Description |
 | :--- | :--- | :--- |
 | `latest` | Production | Latest stable release. |
-| `0.2` | Production | Floating minor release (auto-receives `0.2.x` patches). |
-| `0.2.0` | Production | Exact pinned release version. |
+| `0.3` | Production | Floating minor release (auto-receives `0.3.x` patches). |
+| `0.3.0` | Production | Exact pinned release version. |
 | `experimental` | Development | Bleeding-edge build from the `main` branch. |
 | `pr-<number>` | Testing | Ephemeral preview image built from internal pull requests. |
 
@@ -91,7 +91,7 @@ Because both REST and WebSocket event models are exported in `openapi.json` and 
   ```
 
 ### Read Endpoints
-- **`GET /api/v1/health`**: Lightweight health check (`{ "status": "ok", "version": "0.2.0", "node_id": "...", "device_name": "...", "is_connected": true }`).
+- **`GET /api/v1/health`**: Lightweight health check (`{ "status": "ok", "version": "0.3.0", "node_id": "...", "device_name": "...", "is_connected": true }`).
 - **`GET /api/v1/status`**: Full player status including live estimated `position_ms`, active context name/URI, and cached `track` metadata (`title`, `artist`, `album`, `duration_ms`, `cover_url`).
 - **`GET /api/v1/ws`**: WebSocket stream emitting `InitialStateEvent` (`Event = "initial_state"`) upon connect followed by real-time `WebhookPayload` and `MetadataPayload` frames.
 

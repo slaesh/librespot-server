@@ -10,8 +10,8 @@ body:
     id: version
     attributes:
       label: librespot-server Version / Docker Tag
-      description: What version or image tag are you running? (e.g. `0.2.0`, `latest`, `experimental`)
-      placeholder: "e.g. 0.2.0"
+      description: What version or image tag are you running? (e.g. `0.3.0`, `latest`, `experimental`)
+      placeholder: "e.g. 0.3.0"
     validations:
       required: true
   - type: input
