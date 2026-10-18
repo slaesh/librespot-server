@@ -1,23 +1,23 @@
-use std::env;
+use anyhow::Context;
+use futures_util::StreamExt;
 use librespot_core::authentication::Credentials;
-use librespot_core::config::{SessionConfig, DeviceType};
-use librespot_core::session::Session;
 use librespot_core::cache::Cache;
+use librespot_core::config::{DeviceType, SessionConfig};
+use librespot_core::session::Session;
 use librespot_playback::config::PlayerConfig;
 use librespot_playback::player::Player;
-use tracing::{info, error, Level};
-use tracing_subscriber::FmtSubscriber;
-use anyhow::Context;
-use std::sync::Arc;
-use futures_util::StreamExt;
+use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tracing::{error, info, Level};
+use tracing_subscriber::FmtSubscriber;
 
-mod sink;
 mod api;
 mod events;
-mod shared_mixer;
-mod state;
 mod metadata_cache;
+mod shared_mixer;
+mod sink;
+mod state;
 
 #[macro_export]
 macro_rules! lock_state {
@@ -33,9 +33,11 @@ macro_rules! lock_state {
 }
 
 use crate::shared_mixer::SharedMixer;
-use librespot_connect::Spirc;
 use librespot_connect::ConnectConfig;
-use librespot_connect::{LoadRequest, LoadRequestOptions, LoadContextOptions, Options, PlayingTrack};
+use librespot_connect::Spirc;
+use librespot_connect::{
+    LoadContextOptions, LoadRequest, LoadRequestOptions, Options, PlayingTrack,
+};
 
 pub fn app_version() -> &'static str {
     const VERSION: Option<&str> = option_env!("APP_VERSION");
@@ -50,7 +52,11 @@ async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
-        println!("librespot-server v{} (librespot v{})", app_version(), librespot_core::version::SEMVER);
+        println!(
+            "librespot-server v{} (librespot v{})",
+            app_version(),
+            librespot_core::version::SEMVER
+        );
         return Ok(());
     }
 
@@ -109,7 +115,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let version = app_version();
-    info!("Starting librespot-server v{} (librespot v{})...", version, librespot_core::version::SEMVER);
+    info!(
+        "Starting librespot-server v{} (librespot v{})...",
+        version,
+        librespot_core::version::SEMVER
+    );
 
     // Load configuration from environment (supporting both generic Open-Source and Orchestrator env vars)
     let device_name = env::var("DEVICE_NAME").unwrap_or_else(|_| "Spotify Node".to_string());
@@ -132,39 +142,47 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "/var/cache/librespot".to_string());
     let cache_path = PathBuf::from(cache_root).join(&group_id);
     std::fs::create_dir_all(&cache_path).context("Failed to create cache directory")?;
-    
+
     let username = env::var("SPOTIFY_USERNAME").ok();
     let password = env::var("SPOTIFY_PASSWORD").ok();
-    
-    // Initial volume (0-100 to 0-65535)
-    let initial_vol_percent = env::var("INITIAL_VOLUME").unwrap_or_else(|_| "50".to_string()).parse::<u32>().unwrap_or(50);
 
-    use sha1::{Sha1, Digest};
+    // Initial volume (0-100 to 0-65535)
+    let initial_vol_percent = env::var("INITIAL_VOLUME")
+        .unwrap_or_else(|_| "50".to_string())
+        .parse::<u32>()
+        .unwrap_or(50);
+
+    use sha1::{Digest, Sha1};
     let device_id = hex::encode(Sha1::digest(group_id.as_bytes()));
     info!(
         "Device ID: {} (Node/Group: {}, Webhook: {:?})",
         device_id,
         group_id,
-        webhook_url.as_deref().unwrap_or("disabled (WebSocket only)")
+        webhook_url
+            .as_deref()
+            .unwrap_or("disabled (WebSocket only)")
     );
 
     let mut session_config = SessionConfig::default();
     session_config.device_id = device_id.clone();
-    
+
     // Initialize Cache
     let cache = Cache::new(Some(cache_path.clone()), None, None, None)
         .context("Failed to initialize cache")?;
-    
+
     let state_file_path = cache_path.join("playback_state.json");
     let mut initial_state = state::PlaybackState::default();
     initial_state.volume = initial_vol_percent;
-    
+
     const RECOVERY_THRESHOLD_SECS: u64 = 3600; // 60 minutes
-    
+
     if let Some(loaded_state) = state::PlaybackState::load(&state_file_path) {
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         let age = now.saturating_sub(loaded_state.timestamp);
-        
+
         // Always restore volume from cache if it exists
         initial_state.volume = loaded_state.volume;
 
@@ -172,7 +190,10 @@ async fn main() -> anyhow::Result<()> {
             info!("Found valid persisted state ({}s old, threshold: {}s). Restoring for Cold Boot recovery.", age, RECOVERY_THRESHOLD_SECS);
             initial_state = loaded_state;
         } else {
-            info!("Found stale persisted state ({}s old, threshold: {}s). Restoring volume only.", age, RECOVERY_THRESHOLD_SECS);
+            info!(
+                "Found stale persisted state ({}s old, threshold: {}s). Restoring volume only.",
+                age, RECOVERY_THRESHOLD_SECS
+            );
         }
     }
 
@@ -194,11 +215,14 @@ async fn main() -> anyhow::Result<()> {
             info!("Starting Discovery service for '{}'...", disc_name);
             match librespot_discovery::Discovery::builder(disc_id.clone(), client_id.clone())
                 .name(disc_name.clone())
-                .launch() 
+                .launch()
             {
                 Ok(mut discovery) => {
                     while let Some(creds) = discovery.next().await {
-                        info!("Discovery received credentials for user: {:?}", creds.username);
+                        info!(
+                            "Discovery received credentials for user: {:?}",
+                            creds.username
+                        );
                         let _ = creds_tx.send(creds);
                     }
                 }
@@ -237,7 +261,8 @@ async fn main() -> anyhow::Result<()> {
             state_file_path_clone,
             metadata_cache_clone,
             spirc_handle_for_events,
-        ).await;
+        )
+        .await;
     });
 
     // Persistent Heartbeat Task
@@ -251,14 +276,20 @@ async fn main() -> anyhow::Result<()> {
             heartbeat_interval.tick().await;
             let (track_id, pos, was_playing, age) = {
                 let mut state = lock_state!(heartbeat_state);
-                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-                
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+
                 let mut pos = state.last_position;
                 if state.was_playing && state.position_updated_at_ms > 0 {
-                    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
                     let elapsed = now_ms.saturating_sub(state.position_updated_at_ms);
                     pos = pos.saturating_add(elapsed as u32);
-                    
+
                     // Advance internal state so that it persists the current position on disk saves
                     state.last_position = pos;
                     state.position_updated_at_ms = now_ms;
@@ -271,16 +302,21 @@ async fn main() -> anyhow::Result<()> {
                     last_disk_save = std::time::Instant::now();
                 }
 
-                (state.last_track_uri.clone().unwrap_or_default(), pos, state.was_playing, now.saturating_sub(state.timestamp))
+                (
+                    state.last_track_uri.clone().unwrap_or_default(),
+                    pos,
+                    state.was_playing,
+                    now.saturating_sub(state.timestamp),
+                )
             };
-            
+
             // Send heartbeat webhook continuously.. (as long as we're alive)
             // We allow a 30s grace period (matching our disk save) to keep the pulse alive
             if age <= 30 {
                 let _ = heartbeat_tx.send(events::AppEvent::Heartbeat {
                     track_id,
                     position_ms: pos,
-                    duration_ms: 0, 
+                    duration_ms: 0,
                     interval_ms: 10000,
                     is_playing: was_playing,
                 });
@@ -312,14 +348,19 @@ async fn main() -> anyhow::Result<()> {
             metadata_cache_api,
             ws_broadcast_api,
             api_port_val,
-        ).await {
+        )
+        .await
+        {
             error!("API server failed: {}", e);
         }
     });
 
     if current_creds.is_none() && (username.is_some() && password.is_some()) {
         info!("Using credentials from environment variables.");
-        current_creds = Some(Credentials::with_password(username.clone().unwrap(), password.clone().unwrap()));
+        current_creds = Some(Credentials::with_password(
+            username.clone().unwrap(),
+            password.clone().unwrap(),
+        ));
     }
 
     loop {
@@ -327,10 +368,13 @@ async fn main() -> anyhow::Result<()> {
             // Check if we should recover from cache
             let state = lock_state!(shared_state);
             let age = {
-                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
                 now.saturating_sub(state.timestamp)
             };
-            
+
             if let Some(creds) = cache.credentials() {
                 if state.was_playing {
                     info!("Session lost while playing (State age: {}s). Attempting active recovery...", age);
@@ -347,9 +391,9 @@ async fn main() -> anyhow::Result<()> {
         }
 
         let creds = current_creds.take().unwrap();
-        
+
         let session = Session::new(session_config.clone(), Some(cache.clone()));
-        
+
         // In 0.8.0, session.connect is called internally by Spirc::new.
         // We will just pass the credentials down to Spirc::new later.
 
@@ -362,16 +406,14 @@ async fn main() -> anyhow::Result<()> {
 
         // Initialize custom sink
         let sink_path = pipe_path.clone();
-        
+
         // Create player
         let player_config = PlayerConfig::default();
         let player = Player::new(
             player_config,
             session.clone(),
             Box::new(shared_mixer.clone()),
-            move || {
-                Box::new(sink::FifoSink::new(sink_path.clone()))
-            },
+            move || Box::new(sink::FifoSink::new(sink_path.clone())),
         );
         let mut event_receiver = player.get_player_event_channel();
 
@@ -392,7 +434,9 @@ async fn main() -> anyhow::Result<()> {
             creds.clone(),
             player.clone(),
             Arc::new(shared_mixer.clone()),
-        ).await {
+        )
+        .await
+        {
             Ok(res) => res,
             Err(e) => {
                 error!("Failed to initialize Spirc: {}", e);
@@ -402,14 +446,14 @@ async fn main() -> anyhow::Result<()> {
         };
 
         info!("Connected to Spotify as {}", session.username());
-        let _ = app_event_tx.send(events::AppEvent::Connected { 
+        let _ = app_event_tx.send(events::AppEvent::Connected {
             username: session.username().to_string(),
-            session: session.clone() 
+            session: session.clone(),
         });
-        
+
         tokio::pin!(spirc_task);
         let spirc_arc = Arc::new(spirc);
-        
+
         // Update API handle
         {
             let mut guard = api_spirc_handle.write().await;
@@ -427,16 +471,19 @@ async fn main() -> anyhow::Result<()> {
         // Recovery Logic: Restore session state to Spirc to make the device active
         {
             let state = lock_state!(shared_state);
-            
+
             if let Some(ref uri) = state.last_track_uri {
                 if let Ok(_track) = librespot_core::SpotifyUri::from_uri(uri) {
-                    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
                     let age = now.saturating_sub(state.timestamp);
-                    
+
                     if state.was_active_device {
                         info!("Recovery: Claiming active focus (State age: {}s).", age);
                         let _ = spirc_arc.activate();
-                        
+
                         let spirc_arc_clone = spirc_arc.clone();
                         let track_uri_clone = uri.clone();
                         let context_uri = state.context_uri.clone();
@@ -466,7 +513,8 @@ async fn main() -> anyhow::Result<()> {
                             } else if autoplay {
                                 // Spotify cannot resolve Autoplay for a standalone track queue.
                                 // We must convert the track URI into a radio station context URI!
-                                let station_uri = track_uri_clone.replace("spotify:track:", "spotify:station:track:");
+                                let station_uri = track_uri_clone
+                                    .replace("spotify:track:", "spotify:station:track:");
                                 opts.context_options = Some(LoadContextOptions::Autoplay);
                                 info!("Recovery: Loading track={} as Station {} with Autoplay (was_playing={}, pos={}ms)", track_uri_clone, station_uri, was_playing, pos);
                                 LoadRequest::from_context_uri(station_uri, opts)
@@ -477,7 +525,10 @@ async fn main() -> anyhow::Result<()> {
                             let _ = spirc_arc_clone.load(req);
                         });
                     } else {
-                        info!("Recovery: Silent Warm Standby. Not stealing focus (State age: {}s).", age);
+                        info!(
+                            "Recovery: Silent Warm Standby. Not stealing focus (State age: {}s).",
+                            age
+                        );
                     }
                 }
             }

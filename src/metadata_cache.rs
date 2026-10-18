@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use tokio::sync::{watch, Mutex};
 use librespot_core::session::Session;
 use librespot_core::SpotifyUri;
-use librespot_metadata::{Track, Metadata};
+use librespot_metadata::{Metadata, Track};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{info, error};
+use tokio::sync::{watch, Mutex};
+use tracing::{error, info};
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct CachedMeta {
@@ -57,7 +57,11 @@ impl MetadataCache {
         entries.insert(track_id, CacheEntry::Ready(meta, false));
     }
 
-    pub async fn get_or_fetch(&self, session: &Session, track_id: SpotifyUri) -> Option<CacheResult> {
+    pub async fn get_or_fetch(
+        &self,
+        session: &Session,
+        track_id: SpotifyUri,
+    ) -> Option<CacheResult> {
         let mut entries = self.entries.lock().await;
 
         if let Some(entry) = entries.get(&track_id) {
@@ -67,7 +71,10 @@ impl MetadataCache {
                     return Some(CacheResult::Cached(meta.clone()));
                 }
                 CacheEntry::Pending(rx) => {
-                    info!("Metadata fetch already pending for {:?}, waiting...", track_id);
+                    info!(
+                        "Metadata fetch already pending for {:?}, waiting...",
+                        track_id
+                    );
                     let mut rx = rx.clone();
                     drop(entries);
                     if let Err(_) = rx.changed().await {
@@ -90,16 +97,27 @@ impl MetadataCache {
         let mut track_result = None;
 
         while retries > 0 {
-            match tokio::time::timeout(Duration::from_secs(10), Track::get(session, &track_id)).await {
+            match tokio::time::timeout(Duration::from_secs(10), Track::get(session, &track_id))
+                .await
+            {
                 Ok(Ok(track)) => {
                     track_result = Some(track);
                     break;
                 }
                 Ok(Err(e)) => {
-                    error!("Error fetching metadata for {:?} ({} retries left): {:?}", track_id, retries - 1, e);
+                    error!(
+                        "Error fetching metadata for {:?} ({} retries left): {:?}",
+                        track_id,
+                        retries - 1,
+                        e
+                    );
                 }
                 Err(_) => {
-                    error!("Timed out fetching metadata for {:?} ({} retries left)", track_id, retries - 1);
+                    error!(
+                        "Timed out fetching metadata for {:?} ({} retries left)",
+                        track_id,
+                        retries - 1
+                    );
                 }
             }
             retries -= 1;
@@ -122,7 +140,12 @@ impl MetadataCache {
 
         let album_name = track.album.name.clone();
         let cover_url = track.album.covers.iter().next().map(|id| {
-            let hex = id.id.0.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+            let hex = id
+                .id
+                .0
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>();
             format!("https://i.scdn.co/image/{}", hex)
         });
 
@@ -181,4 +204,3 @@ mod tests {
         assert!(!cache.try_mark_webhook_sent(&uri).await);
     }
 }
-
