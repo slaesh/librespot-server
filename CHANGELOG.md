@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1](https://github.com/slaesh/librespot-server/compare/v0.3.0...v0.3.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **api:** cache volume when no active session and apply to spirc on connect ([2c8f1d3](https://github.com/slaesh/librespot-server/commit/2c8f1d37f3cf2f9c4bc6ca8606ae524763c6c173))
+
 ## [0.3.0](https://github.com/slaesh/librespot-server/compare/v0.2.0...v0.3.0) (2026-10-18)
 
 
