@@ -543,6 +543,6 @@
       "name": "MIT"
     },
     "title": "Spotify Node WebSocket & Webhook Events API",
-    "version": "0.3.0"
+    "version": "0.3.1"
   }
 }
