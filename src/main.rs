@@ -341,6 +341,7 @@ async fn main() -> anyhow::Result<()> {
     let ws_broadcast_api = ws_broadcast_tx.clone();
     let node_id_api = group_id.clone();
     let device_name_api = device_name.clone();
+    let state_file_path_api = state_file_path.clone();
 
     tokio::spawn(async move {
         if let Err(e) = api::start_api(
@@ -352,6 +353,7 @@ async fn main() -> anyhow::Result<()> {
             metadata_cache_api,
             ws_broadcast_api,
             api_port_val,
+            Some(state_file_path_api),
         )
         .await
         {
@@ -464,12 +466,24 @@ async fn main() -> anyhow::Result<()> {
             *guard = Some(spirc_arc.clone());
         }
 
+        // Apply cached volume directly on spirc before stream starts to prevent volume peaks
+        info!(
+            "[SPIRC] Applying cached volume directly to spirc: {}% (u16: {})",
+            lock_state!(shared_state).volume,
+            initial_vol_u16
+        );
+        let _ = spirc_arc.set_volume(initial_vol_u16);
+
         // Re-assert volume after 2 seconds to fight Spotify's 25% default on new sessions
         let spirc_clone = spirc_arc.clone();
-        let vol_to_reassert = initial_vol_u16;
+        let shared_state_for_reassert = shared_state.clone();
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-            let _ = spirc_clone.set_volume(vol_to_reassert);
+            let current_vol_u16 = {
+                let state = lock_state!(shared_state_for_reassert);
+                ((state.volume as f64 / 100.0) * 65535.0) as u16
+            };
+            let _ = spirc_clone.set_volume(current_vol_u16);
         });
 
         // Recovery Logic: Restore session state to Spirc to make the device active

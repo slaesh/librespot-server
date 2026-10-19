@@ -314,6 +314,7 @@ pub struct AppState {
     pub shared_state: crate::state::SharedPlaybackState,
     pub metadata_cache: Arc<MetadataCache>,
     pub ws_broadcast: broadcast::Sender<String>,
+    pub state_file_path: Option<std::path::PathBuf>,
 }
 
 pub fn build_router(state: Arc<AppState>) -> Router {
@@ -398,6 +399,7 @@ pub async fn start_api(
     metadata_cache: Arc<MetadataCache>,
     ws_broadcast: broadcast::Sender<String>,
     port: u16,
+    state_file_path: Option<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         node_id,
@@ -406,6 +408,7 @@ pub async fn start_api(
         shared_state,
         metadata_cache,
         ws_broadcast,
+        state_file_path,
     });
 
     let app = build_router(state);
@@ -583,6 +586,7 @@ async fn handle_ws_client(mut socket: WebSocket, state: Arc<AppState>) {
             }
             incoming = socket.recv() => {
                 match incoming {
+                    #[allow(clippy::collapsible_match)]
                     Some(Ok(Message::Ping(p))) => {
                         if socket.send(Message::Pong(p)).await.is_err() {
                             break;
@@ -603,8 +607,7 @@ async fn handle_ws_client(mut socket: WebSocket, state: Arc<AppState>) {
     tag = "Player Control",
     request_body = VolumeRequest,
     responses(
-        (status = 200, description = "Volume updated", body = String, example = "OK"),
-        (status = 400, description = "No active Spotify session", body = String)
+        (status = 200, description = "Volume updated", body = String, example = "OK")
     )
 )]
 async fn set_volume(
@@ -619,13 +622,42 @@ async fn set_volume(
         volume_percent, volume_u16
     );
 
+    {
+        let mut s = crate::lock_state!(state.shared_state);
+        s.volume = volume_percent;
+        s.timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if let Some(ref path) = state.state_file_path {
+            s.save(path);
+        }
+    }
+
     let spirc_guard = state.spirc.read().await;
     let Some(ref spirc) = *spirc_guard else {
-        warn!("Set volume request failed: No active Spotify session");
-        return (
-            axum::http::StatusCode::BAD_REQUEST,
-            "ERROR: No active session",
+        info!(
+            "No active Spotify session; cached volume {}% (u16: {}) for when session connects",
+            volume_percent, volume_u16
         );
+
+        let payload = WebhookPayload {
+            group_id: state.node_id.clone(),
+            event: "volume_set".to_string(),
+            volume: Some(volume_u16 as u32),
+            position_ms: None,
+            duration_ms: None,
+            track_id: None,
+            interval_ms: None,
+            is_playing: None,
+            context_uri: None,
+            context_name: None,
+        };
+        if let Ok(json_str) = serde_json::to_string(&payload) {
+            let _ = state.ws_broadcast.send(json_str);
+        }
+
+        return (axum::http::StatusCode::OK, "OK");
     };
 
     info!("[SPIRC] -> set_volume({})", volume_u16);
@@ -1020,6 +1052,7 @@ mod tests {
             shared_state: Arc::new(std::sync::Mutex::new(pb)),
             metadata_cache: Arc::new(MetadataCache::new()),
             ws_broadcast: ws_tx,
+            state_file_path: None,
         })
     }
 
@@ -1177,6 +1210,67 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_set_volume_without_session_caches_volume_and_returns_ok() {
+        let state = make_test_state();
+        let app = build_router(state.clone());
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/volume")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"volume": 20}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Verify volume was cached in shared_state
+        {
+            let s = crate::lock_state!(state.shared_state);
+            assert_eq!(s.volume, 20);
+        }
+
+        // Verify GET /api/v1/status returns the cached volume
+        let status_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/status")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(status_resp.status(), StatusCode::OK);
+        let bytes = status_resp.into_body().collect().await.unwrap().to_bytes();
+        let status_json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(status_json["volume"], 20);
+
+        // Also test /player/volume and /volume routes
+        for uri in ["/api/v1/player/volume", "/volume"] {
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(uri)
+                        .header("content-type", "application/json")
+                        .body(Body::from(r#"{"volume": 75}"#))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+            let s = crate::lock_state!(state.shared_state);
+            assert_eq!(s.volume, 75);
         }
     }
 

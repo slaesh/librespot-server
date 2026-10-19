@@ -375,16 +375,6 @@
                 "example": "OK"
               }
             }
-          },
-          "400": {
-            "description": "No active Spotify session",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
           }
         }
       }
