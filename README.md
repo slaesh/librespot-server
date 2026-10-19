@@ -6,7 +6,7 @@
 [![Container Image](https://img.shields.io/badge/ghcr.io-slaesh%2Flibrespot--server-blue?logo=docker)](https://github.com/slaesh/librespot-server/pkgs/container/librespot-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A headless, production-hardened **Spotify Connect** daemon written in Rust (built on `librespot` + `axum`). Designed for **Snapcast**, **Home Assistant**, and custom multi-room audio servers.
+A headless, production-hardened **Spotify Connect** daemon written in Rust (built on `librespot` + `axum`). Designed for **Snapcast**, **Home Assistant**, and custom multi-room audio servers (such as [Audio Orchestrator](https://github.com/slaesh/audio-orchestrator)).
 
 ## Key Features
 
