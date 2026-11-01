@@ -1,5 +1,5 @@
 # Stage 1: Planner
-FROM rust:1.98-bookworm AS chef
+FROM rust:1.99-bookworm AS chef
 RUN cargo install cargo-chef
 WORKDIR /app
 
